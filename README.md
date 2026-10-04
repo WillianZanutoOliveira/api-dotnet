@@ -66,7 +66,7 @@ flowchart LR
     Notifications -. traces/metrics .-> OTel
 ```
 
-More detail: [Architecture documentation](docs/architecture.md)
+More detail: [Architecture documentation](docs/architecture.md) · [5-minute recruiter walkthrough](docs/recruiter-guide.md)
 
 ---
 
