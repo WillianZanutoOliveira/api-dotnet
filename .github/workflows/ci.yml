@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, distributed-commerce-platform ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-containers:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore DistributedCommerce.slnx
+
+      - name: Build
+        run: dotnet build DistributedCommerce.slnx --configuration Release --no-restore
+
+      - name: Test with coverage
+        run: >
+          dotnet test DistributedCommerce.slnx
+          --configuration Release
+          --no-build
+          --verbosity normal
+          --collect:"XPlat Code Coverage"
+          --results-directory TestResults
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage
+          path: TestResults/**
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Build Orders image
+        run: docker build -f src/Services/Orders/Orders.Api/Dockerfile -t distributed-commerce/orders:ci .
+
+      - name: Build Inventory image
+        run: docker build -f src/Services/Inventory/Inventory.Service/Dockerfile -t distributed-commerce/inventory:ci .
+
+      - name: Build Payments image
+        run: docker build -f src/Services/Payments/Payments.Service/Dockerfile -t distributed-commerce/payments:ci .
+
+      - name: Build Notifications image
+        run: docker build -f src/Services/Notifications/Notifications.Service/Dockerfile -t distributed-commerce/notifications:ci .
