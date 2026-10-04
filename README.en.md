@@ -14,7 +14,7 @@
 ![Docker](https://img.shields.io/badge/Docker-4%20Images-2496ED?logo=docker&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-Examples-326CE5?logo=kubernetes&logoColor=white)
 
-**[Architecture](docs/architecture.md) · [5-minute Recruiter Walkthrough](docs/recruiter-guide.md) · [ADRs](docs/adr) · [Kubernetes](deploy/k8s) · [CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)**
+**[Architecture](docs/architecture.en.md) · [5-minute Recruiter Walkthrough](docs/recruiter-guide.en.md) · [ADRs](docs/adr) · [Kubernetes](deploy/k8s/README.en.md) · [CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)**
 
 </div>
 
@@ -82,7 +82,7 @@ flowchart LR
     Notifications -. traces/metrics .-> OTel
 ```
 
-More detail: [Architecture documentation](docs/architecture.md) · [5-minute recruiter walkthrough](docs/recruiter-guide.md)
+More detail: [Architecture documentation](docs/architecture.en.md) · [5-minute recruiter walkthrough](docs/recruiter-guide.en.md)
 
 ---
 
@@ -270,7 +270,7 @@ Dependabot monitors NuGet and GitHub Actions dependencies.
 
 ## Kubernetes
 
-The repository includes Kubernetes-oriented deployment examples under [deploy/k8s](deploy/k8s/README.md).
+The repository includes Kubernetes-oriented deployment examples under [deploy/k8s](deploy/k8s/README.en.md).
 
 They demonstrate:
 

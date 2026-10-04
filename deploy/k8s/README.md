@@ -1,21 +1,23 @@
-# Kubernetes deployment notes
+[🇺🇸 English](README.en.md)
 
-These manifests are portfolio examples showing how the services are expected to behave in an orchestrated environment.
+# Notas de deployment no Kubernetes
 
-They intentionally do **not** deploy PostgreSQL or RabbitMQ into the cluster. In production those dependencies would normally come from managed services or dedicated operators.
+Estes manifests são exemplos de portfólio que mostram como os serviços devem se comportar em um ambiente orquestrado.
 
-## What the sample demonstrates
+Eles intencionalmente **não** fazem o deploy do PostgreSQL nem do RabbitMQ dentro do cluster. Em produção, essas dependências normalmente seriam fornecidas por serviços gerenciados ou operadores dedicados.
 
-- independent service deployments;
-- readiness/liveness probes using `/health`;
-- resource requests and limits;
-- configuration separated from secrets;
-- horizontal scaling at service level;
-- immutable container images.
+## O que o exemplo demonstra
 
-## Required configuration
+- deployments independentes por serviço;
+- probes de readiness/liveness usando `/health`;
+- requests e limits de recursos;
+- configuração separada de segredos;
+- escalabilidade horizontal no nível de serviço;
+- imagens de container imutáveis.
 
-Create a Secret with values equivalent to:
+## Configuração necessária
+
+Crie um Secret com valores equivalentes a:
 
 ```text
 Orders__ConnectionString
@@ -25,11 +27,11 @@ RabbitMq__Username
 RabbitMq__Password
 ```
 
-Create a ConfigMap for:
+Crie um ConfigMap para:
 
 ```text
 RabbitMq__Host
 OTEL_EXPORTER_OTLP_ENDPOINT
 ```
 
-The included `services.yaml` shows representative deployments. Image names are placeholders and should be replaced by an actual registry/release pipeline.
+O arquivo `services.yaml` incluído mostra deployments representativos. Os nomes das imagens são placeholders e devem ser substituídos por imagens publicadas por um registry/pipeline real.

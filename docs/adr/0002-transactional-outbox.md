@@ -1,38 +1,40 @@
-# ADR-0002: Transactional outbox instead of distributed transactions
+[🇺🇸 English](0002-transactional-outbox.en.md)
 
-- **Status:** Accepted
-- **Date:** 2026-10-03
+# ADR-0002: Transactional Outbox em vez de transações distribuídas
 
-## Context
+- **Status:** Aceito
+- **Data:** 2026-10-03
 
-Creating an order requires both:
+## Contexto
 
-1. persisting the order in PostgreSQL;
-2. publishing `OrderSubmitted` to RabbitMQ.
+Criar um pedido exige duas operações:
 
-Performing those operations independently creates a dual-write problem.
+1. persistir o pedido no PostgreSQL;
+2. publicar `OrderSubmitted` no RabbitMQ.
 
-## Decision
+Executar essas operações de forma independente cria um problema de dual-write.
 
-Use MassTransit EF Core outbox support.
+## Decisão
 
-The application publishes normally through an abstraction, while the infrastructure captures the outgoing message in the same EF Core persistence boundary.
+Utilizar o suporte de outbox do MassTransit com EF Core.
 
-The broker delivery occurs asynchronously after the database commit.
+A aplicação publica normalmente por meio de uma abstração, enquanto a infraestrutura captura a mensagem de saída dentro do mesmo limite de persistência do EF Core.
 
-Consumers also use EF Core inbox/outbox integration where they both persist state and publish follow-up events.
+A entrega ao broker acontece de forma assíncrona após o commit do banco de dados.
 
-## Consequences
+Consumers também utilizam a integração inbox/outbox do EF Core quando precisam persistir estado e publicar eventos subsequentes.
 
-### Positive
+## Consequências
 
-- no two-phase distributed transaction;
-- durable message intent;
-- service state and outgoing message remain consistent;
-- application code remains transport-agnostic.
+### Positivas
+
+- não há transação distribuída em duas fases;
+- a intenção de envio da mensagem fica persistida de forma durável;
+- o estado do serviço e a mensagem de saída permanecem consistentes;
+- o código da aplicação permanece independente do transporte.
 
 ### Trade-offs
 
-- downstream services observe changes asynchronously;
-- outbox tables require operational monitoring and cleanup behavior;
-- delivery is at-least-once, therefore consumers must be idempotent.
+- serviços downstream observam as mudanças de forma assíncrona;
+- tabelas de outbox exigem monitoramento operacional e estratégia de limpeza;
+- a entrega é at-least-once, portanto os consumers precisam ser idempotentes.
