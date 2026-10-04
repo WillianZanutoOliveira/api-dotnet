@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <PackageReference Include="MassTransit.RabbitMQ" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\Contracts\Contracts.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\Observability\Observability.csproj" />
+  </ItemGroup>
+</Project>
