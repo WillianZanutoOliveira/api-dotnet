@@ -1,0 +1,132 @@
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  orders-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d orders"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - orders-data:/var/lib/postgresql/data
+
+  inventory-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: inventory
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d inventory"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - inventory-data:/var/lib/postgresql/data
+
+  payments-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: payments
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d payments"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - payments-data:/var/lib/postgresql/data
+
+  orders-api:
+    build:
+      context: .
+      dockerfile: src/Services/Orders/Orders.Api/Dockerfile
+    environment:
+      ConnectionStrings__orders-db: "Host=orders-db;Port=5432;Database=orders;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Username: ${RABBITMQ_DEFAULT_USER}
+      RabbitMq__Password: ${RABBITMQ_DEFAULT_PASS}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      orders-db:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: src/Services/Inventory/Inventory.Service/Dockerfile
+    environment:
+      ConnectionStrings__inventory-db: "Host=inventory-db;Port=5432;Database=inventory;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Username: ${RABBITMQ_DEFAULT_USER}
+      RabbitMq__Password: ${RABBITMQ_DEFAULT_PASS}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      inventory-db:
+        condition: service_healthy
+    ports:
+      - "8082:8080"
+
+  payments-service:
+    build:
+      context: .
+      dockerfile: src/Services/Payments/Payments.Service/Dockerfile
+    environment:
+      ConnectionStrings__payments-db: "Host=payments-db;Port=5432;Database=payments;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Username: ${RABBITMQ_DEFAULT_USER}
+      RabbitMq__Password: ${RABBITMQ_DEFAULT_PASS}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      payments-db:
+        condition: service_healthy
+    ports:
+      - "8083:8080"
+
+  notifications-service:
+    build:
+      context: .
+      dockerfile: src/Services/Notifications/Notifications.Service/Dockerfile
+    environment:
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Username: ${RABBITMQ_DEFAULT_USER}
+      RabbitMq__Password: ${RABBITMQ_DEFAULT_PASS}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8084:8080"
+
+volumes:
+  orders-data:
+  inventory-data:
+  payments-data:
