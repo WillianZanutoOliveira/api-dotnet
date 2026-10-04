@@ -1,28 +1,30 @@
-# Recruiter / Engineering Walkthrough
+[🇺🇸 English](recruiter-guide.en.md)
 
-This page is a **5-minute inspection guide** for recruiters, senior engineers and hiring managers evaluating the repository.
+# Walkthrough para recrutadores / engenharia
 
-The goal is to make the engineering evidence easy to verify without reading the entire codebase.
+Esta página é um **guia de inspeção de 5 minutos** para recrutadores, engenheiros seniores e hiring managers avaliando o repositório.
 
-## 1. Service boundaries
+O objetivo é facilitar a verificação das evidências de engenharia sem exigir a leitura de todo o código.
 
-Start with the high-level architecture:
+## 1. Limites entre serviços
 
-- [Architecture overview](./architecture.md)
-- [Integration event contracts](../src/BuildingBlocks/Contracts/IntegrationEvents.cs)
+Comece pela arquitetura de alto nível:
 
-The platform is split into four independently deployable services:
+- [Visão geral da arquitetura](./architecture.md)
+- [Contratos dos eventos de integração](../src/BuildingBlocks/Contracts/IntegrationEvents.cs)
+
+A plataforma é dividida em quatro serviços implantáveis de forma independente:
 
 - Orders
 - Inventory
 - Payments
 - Notifications
 
-Stateful services own their own PostgreSQL database. Services do not read each other's tables.
+Serviços com estado possuem seu próprio banco PostgreSQL. Nenhum serviço lê tabelas de outro serviço.
 
 ## 2. Clean Architecture
 
-The Orders bounded context is intentionally structured into:
+O bounded context de Orders é estruturado intencionalmente em:
 
 ```text
 Orders.Domain
@@ -34,18 +36,18 @@ Orders.Infrastructure
 Orders.Api
 ```
 
-Useful files:
+Arquivos úteis:
 
-- [Order aggregate](../src/Services/Orders/Orders.Domain/Order.cs)
-- [Application ports](../src/Services/Orders/Orders.Application/Abstractions.cs)
-- [Application use case](../src/Services/Orders/Orders.Application/OrderService.cs)
-- [Infrastructure composition](../src/Services/Orders/Orders.Infrastructure/DependencyInjection.cs)
+- [Agregado Order](../src/Services/Orders/Orders.Domain/Order.cs)
+- [Portas da aplicação](../src/Services/Orders/Orders.Application/Abstractions.cs)
+- [Caso de uso da aplicação](../src/Services/Orders/Orders.Application/OrderService.cs)
+- [Composição da infraestrutura](../src/Services/Orders/Orders.Infrastructure/DependencyInjection.cs)
 
-The domain layer has no dependency on ASP.NET Core, EF Core, RabbitMQ or MassTransit.
+A camada de domínio não depende de ASP.NET Core, EF Core, RabbitMQ nem MassTransit.
 
-## 3. RabbitMQ and event-driven collaboration
+## 3. RabbitMQ e colaboração orientada a eventos
 
-The main asynchronous flow is:
+O fluxo assíncrono principal é:
 
 ```text
 POST /orders
@@ -63,77 +65,77 @@ PaymentAuthorized / PaymentFailed
 Orders + Notifications
 ```
 
-Useful files:
+Arquivos úteis:
 
-- [Orders API and MassTransit setup](../src/Services/Orders/Orders.Api/Program.cs)
-- [Inventory consumer](../src/Services/Inventory/Inventory.Service/OrderSubmittedConsumer.cs)
-- [Payment consumer](../src/Services/Payments/Payments.Service/InventoryReservedConsumer.cs)
-- [Notification consumers](../src/Services/Notifications/Notifications.Service/PaymentConsumers.cs)
+- [Orders API e configuração do MassTransit](../src/Services/Orders/Orders.Api/Program.cs)
+- [Consumer de Inventory](../src/Services/Inventory/Inventory.Service/OrderSubmittedConsumer.cs)
+- [Consumer de Payments](../src/Services/Payments/Payments.Service/InventoryReservedConsumer.cs)
+- [Consumers de Notifications](../src/Services/Notifications/Notifications.Service/PaymentConsumers.cs)
 
-## 4. Reliability: Outbox, Inbox and idempotency
+## 4. Confiabilidade: Outbox, Inbox e idempotência
 
-The repository intentionally addresses the distributed dual-write problem.
+O repositório trata intencionalmente o problema de dual-write em sistemas distribuídos.
 
-Orders uses MassTransit EF Core Bus Outbox so order persistence and outgoing message intent share the same persistence boundary.
+Orders usa MassTransit EF Core Bus Outbox para que a persistência do pedido e a intenção da mensagem de saída compartilhem o mesmo limite de persistência.
 
-Stateful consumers use inbox/outbox support and business-level duplicate protection.
+Consumers com estado usam suporte inbox/outbox e proteção contra duplicidade no nível de negócio.
 
-Useful evidence:
+Evidências úteis:
 
-- [Orders DbContext / outbox entities](../src/Services/Orders/Orders.Infrastructure/OrdersDbContext.cs)
+- [Orders DbContext / entidades de outbox](../src/Services/Orders/Orders.Infrastructure/OrdersDbContext.cs)
 - [Inventory DbContext / inbox-outbox](../src/Services/Inventory/Inventory.Service/InventoryDbContext.cs)
 - [Payments DbContext / inbox-outbox](../src/Services/Payments/Payments.Service/PaymentsDbContext.cs)
 - [ADR: Transactional Outbox](./adr/0002-transactional-outbox.md)
-- [ADR: Idempotency and eventual consistency](./adr/0003-idempotency-eventual-consistency.md)
+- [ADR: Idempotência e consistência eventual](./adr/0003-idempotency-eventual-consistency.md)
 
-## 5. Observability
+## 5. Observabilidade
 
-The platform uses a vendor-neutral OpenTelemetry building block.
+A plataforma usa um building block de OpenTelemetry independente de fornecedor.
 
-Useful evidence:
+Evidências úteis:
 
-- [Shared telemetry building block](../src/BuildingBlocks/Observability/PlatformTelemetry.cs)
-- [Architecture notes on observability](./architecture.md#observability)
+- [Building block compartilhado de telemetria](../src/BuildingBlocks/Observability/PlatformTelemetry.cs)
+- [Notas de arquitetura sobre observabilidade](./architecture.md#observabilidade)
 
-The code exposes custom spans and metrics and can export through OTLP.
+O código expõe spans e métricas customizados e pode exportar via OTLP.
 
-## 6. Testing and delivery
+## 6. Testes e entrega
 
-Useful evidence:
+Evidências úteis:
 
-- [Order domain tests](../tests/Orders.Domain.Tests/OrderTests.cs)
+- [Testes do domínio de Order](../tests/Orders.Domain.Tests/OrderTests.cs)
 - [GitHub Actions CI](../.github/workflows/ci.yml)
 - [Docker Compose](../docker-compose.yml)
-- [Kubernetes examples](../deploy/k8s/README.md)
+- [Exemplos de Kubernetes](../deploy/k8s/README.md)
 
-The CI pipeline validates:
+O pipeline de CI valida:
 
-- dependency restore;
-- Release build;
-- automated tests;
-- code coverage;
-- four Docker image builds.
+- restore de dependências;
+- build em Release;
+- testes automatizados;
+- cobertura de código;
+- build de quatro imagens Docker.
 
-## 7. Architecture decisions
+## 7. Decisões de arquitetura
 
-The ADRs document trade-offs instead of only implementation details:
+Os ADRs documentam trade-offs, e não apenas detalhes de implementação:
 
-- [ADR-0001 — Event-driven services and Clean Architecture](./adr/0001-event-driven-clean-architecture.md)
+- [ADR-0001 — Serviços orientados a eventos e Clean Architecture](./adr/0001-event-driven-clean-architecture.md)
 - [ADR-0002 — Transactional Outbox](./adr/0002-transactional-outbox.md)
-- [ADR-0003 — Idempotency and eventual consistency](./adr/0003-idempotency-eventual-consistency.md)
+- [ADR-0003 — Idempotência e consistência eventual](./adr/0003-idempotency-eventual-consistency.md)
 
-## What this repository is intended to demonstrate
+## O que este repositório pretende demonstrar
 
-This repository is not presented as a production system or as proof that every product should use microservices.
+Este repositório não é apresentado como um sistema de produção nem como prova de que todo produto deveria usar microsserviços.
 
-It is a public engineering reference designed to make the following concerns inspectable:
+Ele é uma referência pública de engenharia criada para tornar inspecionáveis as seguintes preocupações:
 
-- architecture boundaries;
-- asynchronous messaging;
-- reliable event delivery;
-- idempotency;
-- eventual consistency;
-- observability;
-- containerized delivery;
-- CI quality gates;
-- explicit technical trade-offs.
+- limites arquiteturais;
+- mensageria assíncrona;
+- entrega confiável de eventos;
+- idempotência;
+- consistência eventual;
+- observabilidade;
+- entrega containerizada;
+- quality gates em CI;
+- trade-offs técnicos explícitos.
