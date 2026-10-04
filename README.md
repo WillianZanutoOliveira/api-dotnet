@@ -1,6 +1,20 @@
+<div align="center">
+
 # Distributed Commerce Platform
 
-### .NET 10 · Clean Architecture · RabbitMQ · Event-Driven Architecture · PostgreSQL · MassTransit · Docker · Kubernetes · OpenTelemetry
+### .NET 10 · Clean Architecture · RabbitMQ · Event-Driven Architecture
+
+[![CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)
+![Services](https://img.shields.io/badge/Services-4-2563EB)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-3%20Databases-4169E1?logo=postgresql&logoColor=white)
+![RabbitMQ](https://img.shields.io/badge/RabbitMQ-MassTransit-FF6600?logo=rabbitmq&logoColor=white)
+![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-OTLP--ready-7C3AED)
+![Docker](https://img.shields.io/badge/Docker-4%20Images-2496ED?logo=docker&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-Examples-326CE5?logo=kubernetes&logoColor=white)
+
+**[Architecture](docs/architecture.md) · [5-minute Recruiter Walkthrough](docs/recruiter-guide.md) · [ADRs](docs/adr) · [Kubernetes](deploy/k8s) · [CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)**
+
+</div>
 
 A production-minded distributed commerce reference platform designed to demonstrate the engineering concerns expected in **Senior .NET, Tech Lead and Software Architect** roles.
 
