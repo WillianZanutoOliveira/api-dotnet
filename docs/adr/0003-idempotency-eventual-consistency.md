@@ -1,36 +1,38 @@
-# ADR-0003: Idempotent consumers and eventual consistency
+[🇺🇸 English](0003-idempotency-eventual-consistency.en.md)
 
-- **Status:** Accepted
-- **Date:** 2026-10-03
+# ADR-0003: Consumers idempotentes e consistência eventual
 
-## Context
+- **Status:** Aceito
+- **Data:** 2026-10-03
 
-RabbitMQ-based distributed workflows should assume messages may be delivered more than once.
+## Contexto
 
-A consumer must not create duplicate reservations, payments or invalid order transitions when a message is retried or replayed.
+Fluxos distribuídos baseados em RabbitMQ devem assumir que mensagens podem ser entregues mais de uma vez.
 
-## Decision
+Um consumer não pode criar reservas ou pagamentos duplicados, nem transições inválidas de pedido, quando uma mensagem é reenviada ou reproduzida.
 
-Use both infrastructure and business-level safeguards:
+## Decisão
 
-- MassTransit EF Core inbox support;
-- unique order decision records in Inventory and Payments;
-- terminal-state checks in the Order aggregate;
-- retry policies at receive endpoints.
+Utilizar proteções tanto de infraestrutura quanto de nível de negócio:
 
-The checkout journey is modeled as eventually consistent rather than attempting a global ACID transaction.
+- suporte de inbox do MassTransit com EF Core;
+- registros únicos de decisão por pedido em Inventory e Payments;
+- verificações de estado terminal no agregado Order;
+- políticas de retry nos receive endpoints.
 
-## Consequences
+A jornada de checkout é modelada como eventualmente consistente, em vez de tentar uma transação ACID global.
 
-### Positive
+## Consequências
 
-- safe retry/replay behavior;
-- no global database transaction;
-- services remain independently deployable;
-- failure behavior is explicit.
+### Positivas
+
+- retries e replays podem ocorrer com segurança;
+- não há transação global de banco de dados;
+- os serviços permanecem implantáveis de forma independente;
+- o comportamento de falhas fica explícito.
 
 ### Trade-offs
 
-- clients must tolerate a `Pending` state;
-- observability is required to understand asynchronous progress;
-- compensation/failure paths must be modeled explicitly.
+- clientes precisam tolerar o estado `Pending`;
+- observabilidade é necessária para compreender o progresso assíncrono;
+- caminhos de compensação/falha precisam ser modelados explicitamente.
