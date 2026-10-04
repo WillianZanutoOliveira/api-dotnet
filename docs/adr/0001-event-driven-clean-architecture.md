@@ -1,37 +1,39 @@
-# ADR-0001: Event-driven services with Clean Architecture
+[🇺🇸 English](0001-event-driven-clean-architecture.en.md)
 
-- **Status:** Accepted
-- **Date:** 2026-10-03
+# ADR-0001: Serviços orientados a eventos com Clean Architecture
 
-## Context
+- **Status:** Aceito
+- **Data:** 2026-10-03
 
-The project needs to demonstrate service boundaries and distributed-system concerns without coupling business rules to transport or persistence technology.
+## Contexto
 
-## Decision
+O projeto precisa demonstrar limites entre serviços e preocupações de sistemas distribuídos sem acoplar as regras de negócio à tecnologia de transporte ou persistência.
 
-Use independently deployable services connected through RabbitMQ integration events.
+## Decisão
 
-The Orders bounded context uses explicit Clean Architecture layers:
+Utilizar serviços implantáveis de forma independente, conectados por eventos de integração via RabbitMQ.
+
+O bounded context de Orders usa camadas explícitas de Clean Architecture:
 
 - Domain;
 - Application;
 - Infrastructure;
 - API.
 
-Smaller consumers use a lighter internal organization to avoid ceremony that does not improve their current complexity.
+Consumers menores usam uma organização interna mais leve para evitar cerimônia que não agrega valor à complexidade atual.
 
-## Consequences
+## Consequências
 
-### Positive
+### Positivas
 
-- domain code is framework-independent;
-- infrastructure can change without changing domain rules;
-- service boundaries are explicit;
-- asynchronous consumers evolve independently;
-- the project demonstrates architectural judgment rather than mechanically applying layers everywhere.
+- o código de domínio é independente de frameworks;
+- a infraestrutura pode mudar sem alterar as regras de domínio;
+- os limites entre serviços são explícitos;
+- consumers assíncronos podem evoluir de forma independente;
+- o projeto demonstra julgamento arquitetural em vez de aplicar camadas mecanicamente em todos os lugares.
 
 ### Trade-offs
 
-- distributed deployments are operationally more complex than a modular monolith;
-- business flows become eventually consistent;
-- debugging requires correlation and observability.
+- deployments distribuídos são operacionalmente mais complexos do que um monólito modular;
+- os fluxos de negócio passam a ser eventualmente consistentes;
+- debugging exige correlação e observabilidade.
