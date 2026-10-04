@@ -1,5 +1,7 @@
 <div align="center">
 
+[🇺🇸 English](README.en.md)
+
 # Distributed Commerce Platform
 
 ### .NET 10 · Clean Architecture · RabbitMQ · Event-Driven Architecture
@@ -12,53 +14,53 @@
 ![Docker](https://img.shields.io/badge/Docker-4%20Images-2496ED?logo=docker&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-Examples-326CE5?logo=kubernetes&logoColor=white)
 
-**[Architecture](docs/architecture.md) · [5-minute Recruiter Walkthrough](docs/recruiter-guide.md) · [ADRs](docs/adr) · [Kubernetes](deploy/k8s) · [CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)**
+**[Arquitetura](docs/architecture.md) · [Walkthrough técnico de 5 minutos](docs/recruiter-guide.md) · [ADRs](docs/adr) · [Kubernetes](deploy/k8s) · [CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)**
 
 </div>
 
-A production-minded distributed commerce reference platform designed to demonstrate the engineering concerns expected in **Senior .NET, Tech Lead and Software Architect** roles.
+Plataforma de referência de comércio distribuído, construída com foco em práticas de produção para demonstrar preocupações de engenharia esperadas em posições de **Senior .NET, Tech Lead e Software Architect**.
 
-The system models a checkout flow split across independently deployable services:
+O sistema modela um fluxo de checkout dividido entre serviços implantáveis de forma independente:
 
-1. **Orders API** receives an order and persists the aggregate.
-2. The order is published through a **transactional bus outbox**.
-3. **Inventory Service** consumes the order, makes an idempotent reservation decision and publishes the result.
-4. **Payments Service** reacts to a successful reservation and authorizes or rejects the payment.
-5. **Orders** reacts asynchronously to the final business outcome.
-6. **Notifications Service** consumes payment outcomes independently.
+1. A **Orders API** recebe o pedido e persiste o agregado.
+2. O pedido é publicado por meio de um **transactional bus outbox**.
+3. O **Inventory Service** consome o pedido, toma uma decisão idempotente de reserva e publica o resultado.
+4. O **Payments Service** reage a uma reserva bem-sucedida e autoriza ou rejeita o pagamento.
+5. **Orders** reage de forma assíncrona ao resultado final do negócio.
+6. O **Notifications Service** consome os resultados de pagamento de forma independente.
 
-The project intentionally focuses on the hard parts of distributed systems rather than on UI work.
+O projeto foca intencionalmente nas partes difíceis de sistemas distribuídos, em vez de trabalho de interface.
 
 ---
 
-## Why this project exists
+## Por que este projeto existe
 
-The goal is to make advanced backend engineering visible in a public portfolio:
+O objetivo é tornar visível, em um portfólio público, engenharia backend de nível avançado:
 
-- Clean Architecture and dependency inversion;
-- domain modeling and aggregate invariants;
-- asynchronous messaging with RabbitMQ;
-- event-driven service collaboration;
-- transactional outbox/inbox patterns with MassTransit + EF Core;
-- idempotent message processing;
-- eventual consistency;
-- retries and failure isolation;
+- Clean Architecture e inversão de dependência;
+- modelagem de domínio e invariantes de agregados;
+- mensageria assíncrona com RabbitMQ;
+- colaboração entre serviços orientada a eventos;
+- padrões transactional outbox/inbox com MassTransit + EF Core;
+- processamento idempotente de mensagens;
+- consistência eventual;
+- retries e isolamento de falhas;
 - database-per-service;
 - PostgreSQL;
-- OpenTelemetry traces and metrics;
-- Docker and Docker Compose;
-- Kubernetes-ready health endpoints;
-- CI/CD quality gates;
-- automated tests and coverage;
-- architecture decision records.
+- traces e métricas com OpenTelemetry;
+- Docker e Docker Compose;
+- health endpoints preparados para Kubernetes;
+- quality gates em CI/CD;
+- testes automatizados e cobertura;
+- registros de decisões arquiteturais.
 
 ---
 
-## Architecture
+## Arquitetura
 
 ```mermaid
 flowchart LR
-    Client[Client] --> Orders[Orders API]
+    Client[Cliente] --> Orders[Orders API]
 
     Orders --> ODB[(Orders PostgreSQL)]
     Orders -- OrderSubmitted --> Rabbit[(RabbitMQ)]
@@ -74,32 +76,32 @@ flowchart LR
     Rabbit --> Orders
     Rabbit --> Notifications[Notifications Service]
 
-    Orders -. traces/metrics .-> OTel[OpenTelemetry]
-    Inventory -. traces/metrics .-> OTel
-    Payments -. traces/metrics .-> OTel
-    Notifications -. traces/metrics .-> OTel
+    Orders -. traces/métricas .-> OTel[OpenTelemetry]
+    Inventory -. traces/métricas .-> OTel
+    Payments -. traces/métricas .-> OTel
+    Notifications -. traces/métricas .-> OTel
 ```
 
-More detail: [Architecture documentation](docs/architecture.md) · [5-minute recruiter walkthrough](docs/recruiter-guide.md)
+Mais detalhes: [documentação de arquitetura](docs/architecture.md) · [walkthrough técnico de 5 minutos](docs/recruiter-guide.md)
 
 ---
 
-## Service boundaries
+## Limites dos serviços
 
-| Service | Responsibility | Persistence | Messaging |
+| Serviço | Responsabilidade | Persistência | Mensageria |
 | --- | --- | --- | --- |
-| Orders API | order lifecycle and customer-facing API | PostgreSQL | publish + consume |
-| Inventory Service | inventory reservation decision | PostgreSQL | consume + publish |
-| Payments Service | payment authorization decision | PostgreSQL | consume + publish |
-| Notifications Service | independent customer communication reaction | stateless demo | consume |
+| Orders API | ciclo de vida do pedido e API voltada ao cliente | PostgreSQL | publica + consome |
+| Inventory Service | decisão de reserva de estoque | PostgreSQL | consome + publica |
+| Payments Service | decisão de autorização de pagamento | PostgreSQL | consome + publica |
+| Notifications Service | reação independente de comunicação com cliente | demo stateless | consome |
 
-Each stateful service owns its own database. No service reads another service's tables.
+Cada serviço com estado possui seu próprio banco de dados. Nenhum serviço lê tabelas pertencentes a outro serviço.
 
 ---
 
 ## Clean Architecture
 
-The **Orders** bounded context is split into explicit layers:
+O bounded context de **Orders** é dividido em camadas explícitas:
 
 ```text
 Orders.Domain
@@ -111,45 +113,45 @@ Orders.Infrastructure
 Orders.Api
 ```
 
-The domain knows nothing about EF Core, RabbitMQ or ASP.NET Core.
+O domínio não conhece EF Core, RabbitMQ nem ASP.NET Core.
 
-The application layer depends on ports such as:
+A camada de aplicação depende de portas como:
 
 - `IOrderRepository`
 - `IUnitOfWork`
 - `IIntegrationEventPublisher`
 
-Infrastructure implements those ports with PostgreSQL, EF Core and MassTransit.
+A infraestrutura implementa essas portas com PostgreSQL, EF Core e MassTransit.
 
-Smaller event-only services use a deliberately lighter structure. This is intentional: the project demonstrates that architecture should match service complexity rather than copy layers mechanically.
+Serviços menores, focados apenas em eventos, usam deliberadamente uma estrutura mais leve. Isso é intencional: o projeto demonstra que a arquitetura deve acompanhar a complexidade do serviço em vez de replicar camadas mecanicamente.
 
 ---
 
-## Reliability patterns
+## Padrões de confiabilidade
 
 ### Transactional outbox
 
-The Orders API uses the MassTransit EF Core **Bus Outbox**.
+A Orders API usa o **Bus Outbox** do MassTransit com EF Core.
 
-The order state and the outgoing `OrderSubmitted` message participate in the same persistence boundary. The HTTP request does not need a distributed transaction between PostgreSQL and RabbitMQ.
+O estado do pedido e a intenção de envio da mensagem `OrderSubmitted` participam do mesmo limite de persistência. A requisição HTTP não precisa de uma transação distribuída entre PostgreSQL e RabbitMQ.
 
 ### Consumer inbox/outbox
 
-Inventory, Payments and Orders consumers use the EF Core outbox integration to support duplicate protection and reliable outgoing messages.
+Os consumers de Inventory, Payments e Orders usam a integração de outbox com EF Core para suportar proteção contra duplicidade e publicação confiável de mensagens de saída.
 
-### Idempotency
+### Idempotência
 
-Inventory and Payments persist a unique decision per `OrderId` so repeated business events do not create duplicate reservations or payments.
+Inventory e Payments persistem uma decisão única por `OrderId`, evitando reservas ou pagamentos duplicados em caso de reentrega de eventos de negócio.
 
-### Eventual consistency
+### Consistência eventual
 
-The API returns an order in `Pending` state first. The state becomes `Completed`, `InventoryRejected` or `PaymentFailed` asynchronously.
+A API retorna inicialmente um pedido no estado `Pending`. Depois, de forma assíncrona, o estado passa para `Completed`, `InventoryRejected` ou `PaymentFailed`.
 
-This is a deliberate distributed-system trade-off.
+Essa é uma escolha arquitetural deliberada de sistema distribuído.
 
 ---
 
-## Event flow
+## Fluxo de eventos
 
 ```text
 POST /orders
@@ -176,20 +178,20 @@ Paid  Failed
 
 ---
 
-## Running locally
+## Executando localmente
 
-### Requirements
+### Requisitos
 
 - Docker Desktop / Docker Engine
 - Docker Compose
 
-Create the local secret file:
+Crie o arquivo local de segredos:
 
 ```bash
 cp .env.example .env
 ```
 
-Change the example passwords and run:
+Altere as senhas de exemplo e execute:
 
 ```bash
 docker compose up --build
@@ -197,7 +199,7 @@ docker compose up --build
 
 Endpoints:
 
-| Component | URL |
+| Componente | URL |
 | --- | --- |
 | Orders API | http://localhost:8081 |
 | Orders health | http://localhost:8081/health |
@@ -206,7 +208,7 @@ Endpoints:
 | Notifications health | http://localhost:8084/health |
 | RabbitMQ Management | http://localhost:15672 |
 
-Create an order:
+Crie um pedido:
 
 ```bash
 curl -X POST http://localhost:8081/orders \
@@ -219,78 +221,78 @@ curl -X POST http://localhost:8081/orders \
   }'
 ```
 
-Query its asynchronous status:
+Consulte o status assíncrono:
 
 ```bash
 curl http://localhost:8081/orders/{order-id}
 ```
 
-### Demo failure paths
+### Caminhos de falha para demonstração
 
-The sample contains deterministic policies so the distributed flow can be tested without external providers:
+O exemplo possui políticas determinísticas para permitir testar o fluxo distribuído sem provedores externos:
 
-- an item quantity above **10** produces `InventoryRejected`;
-- an order total above **5,000** produces `PaymentFailed`.
+- quantidade de um item acima de **10** gera `InventoryRejected`;
+- total do pedido acima de **5.000** gera `PaymentFailed`.
 
-These rules are intentionally simple; the architecture around them is the focus.
+Essas regras são intencionalmente simples; o foco está na arquitetura ao redor delas.
 
 ---
 
-## Observability
+## Observabilidade
 
-All services use a shared OpenTelemetry building block with:
+Todos os serviços usam um building block compartilhado de OpenTelemetry com:
 
-- `ActivitySource` for distributed trace spans;
-- custom message-processing metrics;
-- OTLP export when `OTEL_EXPORTER_OTLP_ENDPOINT` is configured;
-- console export as the local fallback.
+- `ActivitySource` para spans de trace distribuído;
+- métricas customizadas de processamento de mensagens;
+- exportação OTLP quando `OTEL_EXPORTER_OTLP_ENDPOINT` está configurado;
+- exportação em console como fallback local.
 
-This keeps telemetry vendor-neutral.
+Isso mantém a telemetria independente de fornecedor.
 
 ---
 
 ## CI/CD
 
-GitHub Actions validates every relevant change with:
+O GitHub Actions valida toda mudança relevante com:
 
-1. dependency restore;
-2. Release build;
-3. automated tests;
-4. code-coverage collection;
-5. Orders container build;
-6. Inventory container build;
-7. Payments container build;
-8. Notifications container build.
+1. restore de dependências;
+2. build em Release;
+3. testes automatizados;
+4. coleta de cobertura de código;
+5. build do container de Orders;
+6. build do container de Inventory;
+7. build do container de Payments;
+8. build do container de Notifications.
 
-Dependabot monitors NuGet and GitHub Actions dependencies.
+O Dependabot monitora dependências NuGet e GitHub Actions.
 
 ---
 
 ## Kubernetes
 
-The repository includes Kubernetes-oriented deployment examples under [deploy/k8s](deploy/k8s/README.md).
+O repositório inclui exemplos de deployment orientados a Kubernetes em [deploy/k8s](deploy/k8s/README.md).
 
-They demonstrate:
+Eles demonstram:
 
-- liveness and readiness probes;
-- resource requests and limits;
-- ConfigMap/Secret separation;
-- independently scalable services;
-- stateless application containers.
+- probes de liveness e readiness;
+- requests e limits de recursos;
+- separação entre ConfigMap e Secret;
+- serviços escaláveis de forma independente;
+- containers de aplicação stateless.
 
-RabbitMQ and PostgreSQL are treated as platform dependencies that would normally be provided through managed services or dedicated operators in production.
-
----
-
-## Architecture decisions
-
-- [ADR-0001 — Event-driven services and Clean Architecture](docs/adr/0001-event-driven-clean-architecture.md)
-- [ADR-0002 — Transactional outbox instead of distributed transactions](docs/adr/0002-transactional-outbox.md)
-- [ADR-0003 — Idempotency and eventual consistency](docs/adr/0003-idempotency-eventual-consistency.md)
+RabbitMQ e PostgreSQL são tratados como dependências de plataforma que, em produção, normalmente seriam fornecidas por serviços gerenciados ou operadores dedicados.
 
 ---
 
-## Repository structure
+## Decisões de arquitetura
+
+- [ADR-0001 — Serviços orientados a eventos e Clean Architecture](docs/adr/0001-event-driven-clean-architecture.md)
+- [ADR-0002 — Transactional outbox em vez de transações distribuídas](docs/adr/0002-transactional-outbox.md)
+- [ADR-0003 — Idempotência e consistência eventual](docs/adr/0003-idempotency-eventual-consistency.md)
+
+---
+
+## Estrutura do repositório
 
 ```text
 src/
@@ -320,10 +322,10 @@ deploy/
 
 ---
 
-## Engineering trade-offs
+## Trade-offs de engenharia
 
-This is a portfolio/reference implementation, not a claim that every system should use microservices.
+Esta é uma implementação de portfólio/referência, não uma afirmação de que todo sistema deveria usar microsserviços.
 
-A modular monolith would be preferable for many smaller products. This project uses distributed services intentionally to make visible the concerns that only appear when boundaries are separated: delivery guarantees, idempotency, asynchronous state transitions, independent persistence, retry policy, operational health and observability.
+Um monólito modular seria preferível para muitos produtos menores. Este projeto usa serviços distribuídos intencionalmente para tornar visíveis preocupações que aparecem quando os limites são separados: garantias de entrega, idempotência, transições assíncronas de estado, persistência independente, política de retries, saúde operacional e observabilidade.
 
-That trade-off is documented rather than hidden.
+Esse trade-off é documentado de forma explícita.
