@@ -1,27 +1,29 @@
-# Architecture
+[🇺🇸 English](architecture.en.md)
 
-## System goal
+# Arquitetura
 
-Distributed Commerce Platform is a reference architecture for a transactional checkout journey implemented with independently deployable .NET services.
+## Objetivo do sistema
 
-It is deliberately designed around architectural concerns that become important at senior/lead level:
+O Distributed Commerce Platform é uma arquitetura de referência para uma jornada transacional de checkout implementada com serviços .NET implantáveis de forma independente.
 
-- service boundaries;
-- state ownership;
-- asynchronous communication;
-- delivery guarantees;
-- transactional messaging;
-- idempotency;
-- eventual consistency;
-- failure handling;
-- observability;
-- deployment independence.
+O projeto foi desenhado intencionalmente em torno de preocupações arquiteturais relevantes em nível sênior/lead:
 
-## Context diagram
+- limites entre serviços;
+- ownership de estado;
+- comunicação assíncrona;
+- garantias de entrega;
+- mensageria transacional;
+- idempotência;
+- consistência eventual;
+- tratamento de falhas;
+- observabilidade;
+- independência de deployment.
+
+## Diagrama de contexto
 
 ```mermaid
 flowchart TB
-    User[Client / Consumer]
+    User[Cliente / Consumidor]
     User --> Orders[Orders API]
 
     Orders --> Rabbit[(RabbitMQ)]
@@ -35,33 +37,33 @@ flowchart TB
     Payments --> PaymentsDb[(Payments DB)]
 ```
 
-## Boundaries
+## Limites
 
 ### Orders
 
-Orders owns the customer-facing order aggregate and is the only service that can change order lifecycle state.
+Orders é responsável pelo agregado de pedido voltado ao cliente e é o único serviço que pode alterar o estado do ciclo de vida do pedido.
 
-It exposes synchronous HTTP commands/queries but collaborates with other bounded contexts through integration events.
+Ele expõe comandos/consultas HTTP síncronos, mas colabora com outros bounded contexts por meio de eventos de integração.
 
 ### Inventory
 
-Inventory owns reservation decisions.
+Inventory é responsável pelas decisões de reserva.
 
-It does not modify Orders data or call the Orders database. It communicates through events.
+Ele não altera dados de Orders nem acessa o banco de Orders. A comunicação acontece por eventos.
 
 ### Payments
 
-Payments owns payment decisions.
+Payments é responsável pelas decisões de pagamento.
 
-The demo uses a deterministic rule rather than a real payment gateway so the architecture can run without credentials.
+A demonstração usa uma regra determinística em vez de um gateway real, permitindo executar a arquitetura sem credenciais externas.
 
 ### Notifications
 
-Notifications reacts to completed payment outcomes without becoming part of the critical transaction chain.
+Notifications reage aos resultados de pagamento concluídos sem fazer parte da cadeia transacional crítica.
 
-This demonstrates how additional capabilities can subscribe to business events without increasing coupling between core services.
+Isso demonstra como novas capacidades podem assinar eventos de negócio sem aumentar o acoplamento entre os serviços centrais.
 
-## Clean Architecture dependency direction
+## Direção de dependências na Clean Architecture
 
 ```mermaid
 flowchart BT
@@ -77,7 +79,7 @@ flowchart BT
     Api --> Infrastructure
 ```
 
-The core domain has no reference to:
+O domínio central não referencia:
 
 - EF Core;
 - MassTransit;
@@ -85,13 +87,13 @@ The core domain has no reference to:
 - ASP.NET Core;
 - PostgreSQL.
 
-## Messaging topology
+## Topologia de mensageria
 
-Integration contracts live in a small shared contracts assembly.
+Os contratos de integração ficam em um assembly compartilhado pequeno.
 
-The shared assembly contains message schemas only. It contains no service implementation or shared database model.
+Esse assembly contém apenas schemas de mensagens. Ele não contém implementação de serviços nem modelo compartilhado de banco de dados.
 
-Current events:
+Eventos atuais:
 
 - `OrderSubmitted`
 - `InventoryReserved`
@@ -99,97 +101,97 @@ Current events:
 - `PaymentAuthorized`
 - `PaymentFailed`
 
-## Transaction boundary
+## Limite transacional
 
-Orders uses MassTransit Bus Outbox with EF Core.
+Orders usa o Bus Outbox do MassTransit com EF Core.
 
 ```text
 HTTP Request
    |
-   +--> create Order aggregate
+   +--> cria o agregado Order
    |
-   +--> publish OrderSubmitted
+   +--> publica OrderSubmitted
    |
    +--> SaveChanges()
            |
-           +--> order row
-           +--> outbox row
+           +--> linha do pedido
+           +--> linha da outbox
 ```
 
-The broker publish happens after the database transaction is safely committed.
+A publicação no broker acontece após o commit seguro da transação no banco de dados.
 
-This avoids a two-phase distributed transaction while preserving reliable delivery.
+Isso evita uma transação distribuída em duas fases sem abrir mão da entrega confiável.
 
-## Consumer reliability
+## Confiabilidade dos consumers
 
-Stateful consumers use MassTransit EF Core inbox/outbox support together with unique business keys.
+Consumers com estado usam suporte inbox/outbox do MassTransit com EF Core em conjunto com chaves de negócio únicas.
 
-Two levels of duplicate protection exist:
+Existem dois níveis de proteção contra duplicidade:
 
-1. transport/message-level inbox semantics;
-2. domain-level unique `OrderId` decision records.
+1. semântica de inbox no nível de transporte/mensagem;
+2. registros únicos de decisão por `OrderId` no nível de domínio.
 
-This is important because idempotency should not depend only on the transport implementation.
+Isso é importante porque a idempotência não deve depender somente da implementação de transporte.
 
-## Consistency model
+## Modelo de consistência
 
-The platform is eventually consistent.
+A plataforma é eventualmente consistente.
 
-Immediately after `POST /orders`, an order is `Pending`.
+Logo após `POST /orders`, um pedido está em `Pending`.
 
-Later messages move it to one terminal state:
+Mensagens posteriores movem o pedido para um estado terminal:
 
 - `Completed`;
 - `InventoryRejected`;
 - `PaymentFailed`.
 
-No distributed lock or cross-service SQL transaction is used.
+Não há lock distribuído nem transação SQL entre serviços.
 
-## Failure behavior
+## Comportamento de falhas
 
-Receive endpoints use interval-based retry.
+Os receive endpoints usam retry baseado em intervalo.
 
-After retry exhaustion, MassTransit moves poison messages to its error transport, isolating repeated failures from the normal queue.
+Após esgotar as tentativas, o MassTransit move mensagens problemáticas para o transporte de erro, isolando falhas repetidas da fila normal.
 
-The design favors:
+O design prioriza:
 
-- at-least-once delivery;
-- idempotent handling;
-- observable failures;
-- replayability.
+- entrega at-least-once;
+- processamento idempotente;
+- falhas observáveis;
+- possibilidade de replay.
 
-## Observability
+## Observabilidade
 
-A shared OpenTelemetry building block exposes:
+Um building block compartilhado de OpenTelemetry expõe:
 
-- an `ActivitySource` for custom spans;
-- a `Meter` for custom counters;
-- message-processing metrics;
-- OTLP export when configured.
+- `ActivitySource` para spans customizados;
+- `Meter` para contadores customizados;
+- métricas de processamento de mensagens;
+- exportação OTLP quando configurada.
 
-The design stays backend-agnostic so the same code can feed systems such as Grafana Tempo, Datadog, New Relic or cloud-native collectors.
+O design permanece independente do backend, permitindo alimentar sistemas como Grafana Tempo, Datadog, New Relic ou collectors nativos de cloud.
 
-## Deployment model
+## Modelo de deployment
 
-Every service has its own Dockerfile and health endpoint.
+Cada serviço possui seu próprio Dockerfile e health endpoint.
 
-The Kubernetes examples assume:
+Os exemplos de Kubernetes assumem:
 
-- independent replicas;
-- service-level resource limits;
-- readiness/liveness checks;
-- secrets supplied outside source control;
-- managed/external RabbitMQ and PostgreSQL in production.
+- réplicas independentes;
+- limites de recursos por serviço;
+- checks de readiness/liveness;
+- segredos fornecidos fora do controle de versão;
+- RabbitMQ e PostgreSQL gerenciados/externos em produção.
 
-## Intentional omissions
+## Omissões intencionais
 
-For portfolio clarity, the first version intentionally does not include:
+Para manter clareza de portfólio, a primeira versão intencionalmente não inclui:
 
-- a frontend;
-- a real payment provider;
+- frontend;
+- provedor real de pagamentos;
 - service mesh;
-- full authentication/authorization;
+- autenticação/autorização completas;
 - Event Sourcing;
-- a Kubernetes operator stack.
+- stack de operadores Kubernetes.
 
-These can be added later, but are not required to demonstrate the distributed consistency and messaging concerns at the center of the project.
+Esses itens podem ser adicionados no futuro, mas não são necessários para demonstrar as preocupações de consistência distribuída e mensageria que estão no centro do projeto.
