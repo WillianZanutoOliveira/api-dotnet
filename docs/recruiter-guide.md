@@ -97,13 +97,14 @@ Evidências úteis:
 - [Building block compartilhado de telemetria](../src/BuildingBlocks/Observability/PlatformTelemetry.cs)
 - [Notas de arquitetura sobre observabilidade](./architecture.md#observabilidade)
 
-O código expõe spans e métricas customizados e pode exportar via OTLP.
+O código expõe spans e métricas customizados via OTLP. O ambiente local inclui OpenTelemetry Collector, Tempo, Prometheus e Grafana.
 
 ## 6. Testes e entrega
 
 Evidências úteis:
 
 - [Testes do domínio de Order](../tests/Orders.Domain.Tests/OrderTests.cs)
+- [Integração real com PostgreSQL via Testcontainers](../tests/Orders.Persistence.IntegrationTests/OrderRepositoryTests.cs)
 - [GitHub Actions CI](../.github/workflows/ci.yml)
 - [Docker Compose](../docker-compose.yml)
 - [Exemplos de Kubernetes](../deploy/k8s/README.md)
@@ -114,7 +115,10 @@ O pipeline de CI valida:
 - build em Release;
 - testes automatizados;
 - cobertura de código;
-- build de quatro imagens Docker.
+- quality gate Sonar/.editorconfig/dotnet format;
+- testes unitários e Testcontainers;
+- build do Gateway + quatro serviços;
+- smoke test do fluxo Keycloak → YARP → Orders usando o perfil Vault.
 
 ## 7. Segurança e identidade
 
@@ -127,6 +131,8 @@ Evidências úteis:
 
 O projeto demonstra validação JWT, audience/issuer checks, RBAC e object-level authorization. O CustomerId não é confiado ao payload: ele vem do sub autenticado.
 
+A camada de segredos usa HashiCorp Vault com KV v2, token por serviço e policy de leitura mínima. Evidências: [building block de secrets](../src/BuildingBlocks/Secrets/VaultConfigurationExtensions.cs), [overlay Vault](../docker-compose.vault.yml) e [ADR-0006](./adr/0006-secrets-hashicorp-vault.md).
+
 ## 8. Automação de engenharia com IA
 
 Evidências úteis:
@@ -138,7 +144,18 @@ Evidências úteis:
 
 O agente pode implementar mudanças em workspace isolado, mas precisa passar quality gates e só pode entregar via branch + pull request. Não existe auto-merge.
 
-## 9. Decisões de arquitetura
+## 9. Clean Code e DevSecOps
+
+Evidências úteis:
+
+- [Regras compartilhadas](../.editorconfig)
+- [SonarAnalyzer no build](../Directory.Build.props)
+- [Pipeline de segurança](../.github/workflows/security.yml)
+- [Guia de qualidade](./code-quality.md)
+
+O build trata warnings como erros e o CI verifica formatação/analyzers. O pipeline separado executa CodeQL, Trivy e gera SBOM SPDX.
+
+## 10. Decisões de arquitetura
 
 Os ADRs documentam trade-offs, e não apenas detalhes de implementação:
 
@@ -147,6 +164,7 @@ Os ADRs documentam trade-offs, e não apenas detalhes de implementação:
 - [ADR-0003 — Idempotência e consistência eventual](./adr/0003-idempotency-eventual-consistency.md)
 - [ADR-0004 — Identidade e autorização com Keycloak](./adr/0004-identity-keycloak.md)
 - [ADR-0005 — Harness de engenharia assistida por IA](./adr/0005-ai-engineering-harness.md)
+- [ADR-0006 — Gestão centralizada de segredos com HashiCorp Vault](./adr/0006-secrets-hashicorp-vault.md)
 
 ## O que este repositório pretende demonstrar
 
