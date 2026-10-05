@@ -12,7 +12,10 @@ var tokenDirectories = new Dictionary<string, string>(StringComparer.Ordinal)
     ["orders"] = Path.Combine(tokenRoot, "orders"),
     ["inventory"] = Path.Combine(tokenRoot, "inventory"),
     ["payments"] = Path.Combine(tokenRoot, "payments"),
-    ["notifications"] = Path.Combine(tokenRoot, "notifications")
+    ["notifications"] = Path.Combine(tokenRoot, "notifications"),
+    ["orders-migrator"] = Path.Combine(tokenRoot, "orders-migrator"),
+    ["inventory-migrator"] = Path.Combine(tokenRoot, "inventory-migrator"),
+    ["payments-migrator"] = Path.Combine(tokenRoot, "payments-migrator")
 };
 
 foreach (var directory in tokenDirectories.Values)
@@ -110,10 +113,62 @@ var vaultInit = builder
     .WithBindMount(tokenDirectories["inventory"], "/tokens/inventory")
     .WithBindMount(tokenDirectories["payments"], "/tokens/payments")
     .WithBindMount(tokenDirectories["notifications"], "/tokens/notifications")
+    .WithBindMount(tokenDirectories["orders-migrator"], "/tokens/orders-migrator")
+    .WithBindMount(tokenDirectories["inventory-migrator"], "/tokens/inventory-migrator")
+    .WithBindMount(tokenDirectories["payments-migrator"], "/tokens/payments-migrator")
     .WaitFor(vault)
     .WaitFor(ordersDb)
     .WaitFor(inventoryDb)
     .WaitFor(paymentsDb);
+
+var databaseMigratorProject = Path.Combine(
+    repositoryRoot,
+    "src",
+    "Platform",
+    "DatabaseMigrator",
+    "DatabaseMigrator.csproj");
+
+var ordersMigrator = builder
+    .AddProject("orders-migrator", databaseMigratorProject)
+    .WithEnvironment("MIGRATION_TARGET", "orders")
+    .WithEnvironment("ConnectionStrings__orders-db", "")
+    .WithEnvironment("Vault__Address", "http://localhost:8200")
+    .WithEnvironment("Vault__TokenFile", Path.Combine(tokenDirectories["orders-migrator"], "token"))
+    .WithEnvironment("Vault__DatabaseRole", "orders-migration")
+    .WithEnvironment("Vault__DatabaseConnectionStringName", "orders-db")
+    .WithEnvironment("Vault__DatabaseHost", "localhost")
+    .WithEnvironment("Vault__DatabasePort", "5432")
+    .WithEnvironment("Vault__DatabaseName", "orders")
+    .WithEnvironment("Vault__DatabaseRuntimeRole", "orders_migrator")
+    .WaitForCompletion(vaultInit);
+
+var inventoryMigrator = builder
+    .AddProject("inventory-migrator", databaseMigratorProject)
+    .WithEnvironment("MIGRATION_TARGET", "inventory")
+    .WithEnvironment("ConnectionStrings__inventory-db", "")
+    .WithEnvironment("Vault__Address", "http://localhost:8200")
+    .WithEnvironment("Vault__TokenFile", Path.Combine(tokenDirectories["inventory-migrator"], "token"))
+    .WithEnvironment("Vault__DatabaseRole", "inventory-migration")
+    .WithEnvironment("Vault__DatabaseConnectionStringName", "inventory-db")
+    .WithEnvironment("Vault__DatabaseHost", "localhost")
+    .WithEnvironment("Vault__DatabasePort", "5433")
+    .WithEnvironment("Vault__DatabaseName", "inventory")
+    .WithEnvironment("Vault__DatabaseRuntimeRole", "inventory_migrator")
+    .WaitForCompletion(vaultInit);
+
+var paymentsMigrator = builder
+    .AddProject("payments-migrator", databaseMigratorProject)
+    .WithEnvironment("MIGRATION_TARGET", "payments")
+    .WithEnvironment("ConnectionStrings__payments-db", "")
+    .WithEnvironment("Vault__Address", "http://localhost:8200")
+    .WithEnvironment("Vault__TokenFile", Path.Combine(tokenDirectories["payments-migrator"], "token"))
+    .WithEnvironment("Vault__DatabaseRole", "payments-migration")
+    .WithEnvironment("Vault__DatabaseConnectionStringName", "payments-db")
+    .WithEnvironment("Vault__DatabaseHost", "localhost")
+    .WithEnvironment("Vault__DatabasePort", "5434")
+    .WithEnvironment("Vault__DatabaseName", "payments")
+    .WithEnvironment("Vault__DatabaseRuntimeRole", "payments_migrator")
+    .WaitForCompletion(vaultInit);
 
 var ordersApi = builder
     .AddProject(
@@ -142,6 +197,7 @@ var ordersApi = builder
     .WithEnvironment("Vault__DatabaseRuntimeRole", "orders_runtime")
     .WithOtlpExporter()
     .WaitForCompletion(vaultInit)
+    .WaitForCompletion(ordersMigrator)
     .WaitFor(rabbitMq)
     .WaitFor(keycloak);
 
@@ -167,6 +223,7 @@ builder
     .WithEnvironment("Vault__DatabaseRuntimeRole", "inventory_runtime")
     .WithOtlpExporter()
     .WaitForCompletion(vaultInit)
+    .WaitForCompletion(inventoryMigrator)
     .WaitFor(rabbitMq);
 
 builder
@@ -191,6 +248,7 @@ builder
     .WithEnvironment("Vault__DatabaseRuntimeRole", "payments_runtime")
     .WithOtlpExporter()
     .WaitForCompletion(vaultInit)
+    .WaitForCompletion(paymentsMigrator)
     .WaitFor(rabbitMq);
 
 builder
