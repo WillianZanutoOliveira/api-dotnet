@@ -18,4 +18,4 @@ app.UseAuthorization();
 app.MapHealthChecks("/health");
 app.MapReverseProxy().RequireAuthorization();
 
-app.Run();
+await app.RunAsync();
