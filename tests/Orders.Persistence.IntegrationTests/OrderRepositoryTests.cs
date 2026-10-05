@@ -14,8 +14,7 @@ public sealed class OrderRepositoryTests
     [OneTimeSetUp]
     public async Task StartDatabaseAsync()
     {
-        _postgres = new PostgreSqlBuilder()
-            .WithImage("postgres:18-alpine")
+        _postgres = new PostgreSqlBuilder("postgres:18-alpine")
             .WithDatabase("orders_test")
             .WithUsername("postgres")
             .WithPassword("postgres")
