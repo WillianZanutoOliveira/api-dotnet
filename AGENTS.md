@@ -23,6 +23,7 @@ Before changing code, read:
 ## Security invariants
 
 - Never commit credentials, tokens, private keys or real customer data.
+- Application credentials belong in Vault (or the target platform secret manager), not in appsettings or application-container environment variables.
 - Never trust a customer/user identifier supplied by the request body when it can be derived from authenticated identity.
 - Do not disable issuer, audience, lifetime or signature validation to make tests pass.
 - Do not weaken authorization policies.
@@ -52,4 +53,4 @@ AI automation must not modify these files unless a human explicitly performs a s
 - dotnet build DistributedCommerce.slnx --configuration Release --no-restore
 - dotnet format DistributedCommerce.slnx --verify-no-changes --no-restore --severity warn
 - dotnet test DistributedCommerce.slnx --configuration Release --no-build
-- docker compose config
+- docker compose -f docker-compose.yml -f docker-compose.vault.yml config
