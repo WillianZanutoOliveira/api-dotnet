@@ -118,7 +118,10 @@ O pipeline de CI valida:
 - quality gate Sonar/.editorconfig/dotnet format;
 - testes unitários e Testcontainers;
 - build do Gateway + quatro serviços;
-- smoke test do fluxo Keycloak → YARP → Orders usando o perfil Vault.
+- smoke test do fluxo Keycloak → YARP → Orders usando o perfil Vault;
+- existência de usuário PostgreSQL efêmero criado pelo Vault;
+- ausência de connection string efetivo no environment da aplicação;
+- renovação real do lease durante o CI.
 
 ## 7. Segurança e identidade
 
@@ -131,7 +134,16 @@ Evidências úteis:
 
 O projeto demonstra validação JWT, audience/issuer checks, RBAC e object-level authorization. O CustomerId não é confiado ao payload: ele vem do sub autenticado.
 
-A camada de segredos usa HashiCorp Vault com KV v2, token por serviço e policy de leitura mínima. Evidências: [building block de secrets](../src/BuildingBlocks/Secrets/VaultConfigurationExtensions.cs), [overlay Vault](../docker-compose.vault.yml) e [ADR-0006](./adr/0006-secrets-hashicorp-vault.md).
+A camada de segredos usa HashiCorp Vault com token/policy por workload. RabbitMQ fica no KV v2; PostgreSQL usa credenciais dinâmicas. Orders, Inventory e Payments recebem um login temporário com TTL + lease renovável, enquanto as permissões ficam em roles PostgreSQL `NOLOGIN` estáveis.
+
+Evidências:
+
+- [Loader de secrets e credenciais dinâmicas](../src/BuildingBlocks/Secrets/VaultConfigurationExtensions.cs)
+- [Renovação de lease](../src/BuildingBlocks/Secrets/VaultLeaseRenewalService.cs)
+- [Bootstrap Database Secrets Engine](../deploy/vault/vault-init.sh)
+- [Overlay Vault](../docker-compose.vault.yml)
+- [ADR-0006 — cofre de segredos](./adr/0006-secrets-hashicorp-vault.md)
+- [ADR-0007 — credenciais PostgreSQL dinâmicas](./adr/0007-dynamic-postgresql-credentials.md)
 
 ## 8. Automação de engenharia com IA
 
@@ -165,6 +177,7 @@ Os ADRs documentam trade-offs, e não apenas detalhes de implementação:
 - [ADR-0004 — Identidade e autorização com Keycloak](./adr/0004-identity-keycloak.md)
 - [ADR-0005 — Harness de engenharia assistida por IA](./adr/0005-ai-engineering-harness.md)
 - [ADR-0006 — Gestão centralizada de segredos com HashiCorp Vault](./adr/0006-secrets-hashicorp-vault.md)
+- [ADR-0007 — Credenciais PostgreSQL dinâmicas com Vault Database Secrets Engine](./adr/0007-dynamic-postgresql-credentials.md)
 
 ## O que este repositório pretende demonstrar
 
