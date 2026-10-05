@@ -11,6 +11,7 @@ public static partial class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         await builder.Configuration.AddVaultSecretsAsync();
+        builder.Services.AddVaultLeaseRenewal();
 
         var connectionString = builder.Configuration.GetConnectionString("inventory-db")
             ?? "Host=localhost;Port=5433;Database=inventory;Username=postgres;Password=postgres";
