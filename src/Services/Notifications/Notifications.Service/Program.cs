@@ -10,6 +10,7 @@ public static partial class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         await builder.Configuration.AddVaultSecretsAsync();
+        builder.Services.AddVaultLeaseRenewal();
 
         var rabbitHost = builder.Configuration["RabbitMq:Host"] ?? "localhost";
         var rabbitUser = builder.Configuration["RabbitMq:Username"] ?? "guest";
