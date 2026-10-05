@@ -37,7 +37,7 @@ public sealed class OrderRepositoryTests
             .Options;
 
         await using var dbContext = new OrdersDbContext(options);
-        await dbContext.Database.EnsureCreatedAsync();
+        await dbContext.Database.MigrateAsync();
 
         var repository = new OrderRepository(dbContext);
         var order = Order.Create("subject-integration-test", 125.50m);
