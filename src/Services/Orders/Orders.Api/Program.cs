@@ -1,7 +1,7 @@
 using System.Security.Claims;
-using DistributedCommerce.ServiceDefaults;
 using DistributedCommerce.Secrets;
 using DistributedCommerce.Security;
+using DistributedCommerce.ServiceDefaults;
 using MassTransit;
 using Orders.Api;
 using Orders.Application;
