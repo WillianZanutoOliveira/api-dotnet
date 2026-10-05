@@ -52,18 +52,21 @@ O objetivo é tornar visível, em um portfólio público, engenharia backend de 
 - retries e isolamento de falhas;
 - database-per-service;
 - PostgreSQL;
-- API Gateway com YARP e autenticação na borda;
+- API Gateway com YARP, autenticação na borda e rate limiting por identidade;
 - gestão centralizada de segredos com HashiCorp Vault e policies por workload;
 - credenciais PostgreSQL dinâmicas com Database Secrets Engine, TTL, lease renewal e revogação;
 - traces e métricas com OpenTelemetry, Tempo, Prometheus e Grafana;
 - Docker e Docker Compose;
 - orquestração local com .NET Aspire 13.6 e dashboard integrado;
+- Service Defaults compartilhados com readiness/liveness, service discovery e resiliência HTTP;
 - health endpoints preparados para Kubernetes;
 - quality gates em CI/CD;
 - testes automatizados, cobertura e integração com PostgreSQL real via Testcontainers;
 - Clean Code com SonarAnalyzer, .editorconfig e dotnet format;
-- DevSecOps com CodeQL, Trivy e geração de SBOM;
+- DevSecOps com CodeQL, Trivy, SBOM e OpenSSF Scorecard;
+- GitHub Actions pinadas por commit SHA e releases OCI no GHCR com provenance attestations via OIDC/Sigstore;
 - autenticação OpenID Connect, validação JWT, RBAC e autorização por recurso com Keycloak;
+- OpenAPI nativo do ASP.NET Core validado no teste de topologia;
 - harness de engenharia assistida por IA com build/test e entrega somente por pull request;
 - registros de decisões arquiteturais.
 
@@ -309,6 +312,45 @@ Em produção, o modo dev/root token não é usado: a preferência é identidade
 
 ---
 
+## Service Defaults e proteção de borda
+
+Todos os workloads usam um building block compartilhado alinhado ao padrão do Aspire:
+
+- `/health` para readiness;
+- `/alive` para liveness;
+- OpenTelemetry compartilhado;
+- service discovery;
+- Standard Resilience Handler para futuros `HttpClient`.
+
+O YARP Gateway aplica token bucket rate limiting por identidade autenticada (`sub`), com fallback para IP. Orders publica `/openapi/v1.json` em Development, e o teste de topologia Aspire valida o documento automaticamente.
+
+Veja [ADR-0009](docs/adr/0009-service-defaults-api-resilience.md).
+
+---
+
+## Software supply chain
+
+Além de CodeQL/Trivy/SBOM, o repositório automatiza:
+
+- OpenSSF Scorecard semanal com resultados em SARIF/Code Scanning;
+- GitHub Actions referenciadas por SHA imutável;
+- `CODEOWNERS` e `SECURITY.md`;
+- publicação automática de cinco imagens OCI no GHCR quando uma tag `v*` é criada;
+- attestation criptográfica de cada digest OCI com GitHub OIDC + Sigstore.
+
+Exemplo de release:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+A origem da imagem publicada pode então ser verificada com `gh attestation verify`.
+
+Veja [ADR-0010](docs/adr/0010-software-supply-chain.md).
+
+---
+
 ## AI Engineering Harness
 
 O repositório também demonstra automação do ciclo de desenvolvimento. O workflow [AI Evolution Harness](.github/workflows/ai-evolution.yml) executa um agente Codex sob regras versionadas em [AGENTS.md](AGENTS.md) e [.ai/engineering-constitution.md](.ai/engineering-constitution.md).
@@ -382,6 +424,8 @@ RabbitMQ e PostgreSQL são tratados como dependências de plataforma que, em pro
 - [ADR-0006 — Gestão centralizada de segredos com HashiCorp Vault](docs/adr/0006-secrets-hashicorp-vault.md)
 - [ADR-0007 — Credenciais PostgreSQL dinâmicas com Vault Database Secrets Engine](docs/adr/0007-dynamic-postgresql-credentials.md)
 - [ADR-0008 — .NET Aspire como orquestrador de desenvolvimento local](docs/adr/0008-dotnet-aspire-local-orchestration.md)
+- [ADR-0009 — Service Defaults, health model, OpenAPI e proteção de borda](docs/adr/0009-service-defaults-api-resilience.md)
+- [ADR-0010 — Software supply chain e releases atestados](docs/adr/0010-software-supply-chain.md)
 
 ---
 
