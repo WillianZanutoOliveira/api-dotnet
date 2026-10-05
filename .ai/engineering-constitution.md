@@ -12,10 +12,11 @@ The AI harness exists to accelerate small, reviewable improvements while keeping
 4. Architecture preservation — service ownership, Clean Architecture boundaries, outbox/inbox and idempotency must not be weakened.
 5. Security preservation — authentication and authorization validation cannot be disabled for convenience.
 6. No secrets in source — credentials belong in secret stores or explicitly local demo fixtures.
-7. Small diffs — one task should result in one coherent change, not broad opportunistic refactoring.
-8. Explain important decisions — material architectural choices require an ADR.
-9. Bilingual public docs — public Portuguese and English documentation evolve together.
-10. Governance cannot rewrite itself — the agent cannot edit the harness policy or workflow that governs it.
+7. Secret-manager preservation — application credentials must remain behind the Vault/platform-secret boundary; agents may not reintroduce effective service passwords through appsettings or application-container environment values.
+8. Small diffs — one task should result in one coherent change, not broad opportunistic refactoring.
+9. Explain important decisions — material architectural choices require an ADR.
+10. Bilingual public docs — public Portuguese and English documentation evolve together.
+11. Governance cannot rewrite itself — the agent cannot edit the harness policy or workflow that governs it.
 
 ## Pull-request expectation
 
