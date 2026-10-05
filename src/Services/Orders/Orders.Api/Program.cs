@@ -2,6 +2,7 @@ using System.Security.Claims;
 using DistributedCommerce.Observability;
 using DistributedCommerce.Security;
 using MassTransit;
+using Orders.Api;
 using Orders.Application;
 using Orders.Infrastructure;
 
@@ -123,7 +124,7 @@ app.MapGet("/orders/{id:guid}", async (
     return Results.Ok(order);
 }).RequireAuthorization(SecurityPolicies.OrdersRead);
 
-app.Run();
+await app.RunAsync();
 
 static Dictionary<string, string[]> Validate(CreateOrderRequest request)
 {
@@ -139,6 +140,3 @@ static Dictionary<string, string[]> Validate(CreateOrderRequest request)
 
     return errors;
 }
-
-public sealed record CreateOrderRequest(IReadOnlyCollection<CreateOrderItemRequest> Items);
-public sealed record CreateOrderItemRequest(string Sku, int Quantity, decimal UnitPrice);
