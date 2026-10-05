@@ -145,7 +145,28 @@ Evidence:
 - [ADR-0006 — secrets vault](./adr/0006-secrets-hashicorp-vault.en.md)
 - [ADR-0007 — dynamic PostgreSQL credentials](./adr/0007-dynamic-postgresql-credentials.en.md)
 
-## 8. AI engineering automation
+## 8. Developer experience with .NET Aspire
+
+The repository also makes **developer experience** and technical onboarding inspectable.
+
+Evidence:
+
+- [Aspire AppHost](../src/Platform/DistributedCommerce.AppHost/AppHost.cs)
+- [AppHost project](../src/Platform/DistributedCommerce.AppHost/DistributedCommerce.AppHost.csproj)
+- [Local-development guide](./local-development.en.md)
+- [ADR-0008 — local Aspire orchestration](./adr/0008-dotnet-aspire-local-orchestration.en.md)
+
+A contributor can start the local topology with:
+
+```bash
+dotnet run --project src/Platform/DistributedCommerce.AppHost
+```
+
+The AppHost keeps Keycloak, Vault, RabbitMQ and the three PostgreSQL databases containerized while the Gateway and four .NET services run as local projects. This preserves dynamic PostgreSQL credentials and lease renewal while enabling breakpoints, per-resource logs and centralized Aspire Dashboard telemetry.
+
+Docker Compose remains the CI-tested parity path.
+
+## 9. AI engineering automation
 
 Useful evidence:
 
@@ -156,7 +177,7 @@ Useful evidence:
 
 The agent can implement changes in an isolated workspace, but it must pass quality gates and can only deliver through a branch + pull request. There is no auto-merge.
 
-## 9. Clean Code and DevSecOps
+## 10. Clean Code and DevSecOps
 
 Useful evidence:
 
@@ -167,7 +188,7 @@ Useful evidence:
 
 The build treats warnings as errors and CI verifies formatting/analyzers. A separate pipeline runs CodeQL, Trivy and generates an SPDX SBOM.
 
-## 10. Architecture decisions
+## 11. Architecture decisions
 
 The ADRs document trade-offs instead of only implementation details:
 
@@ -178,6 +199,7 @@ The ADRs document trade-offs instead of only implementation details:
 - [ADR-0005 — AI-assisted engineering harness](./adr/0005-ai-engineering-harness.en.md)
 - [ADR-0006 — Centralized secrets management with HashiCorp Vault](./adr/0006-secrets-hashicorp-vault.en.md)
 - [ADR-0007 — Dynamic PostgreSQL credentials with Vault Database Secrets Engine](./adr/0007-dynamic-postgresql-credentials.en.md)
+- [ADR-0008 — .NET Aspire as the local development orchestrator](./adr/0008-dotnet-aspire-local-orchestration.en.md)
 
 ## What this repository is intended to demonstrate
 
