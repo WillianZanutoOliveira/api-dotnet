@@ -1,5 +1,6 @@
 using System.Net;
 using Aspire.Hosting.Testing;
+using NUnit.Framework;
 
 namespace DistributedCommerce.AppHost.Tests;
 
