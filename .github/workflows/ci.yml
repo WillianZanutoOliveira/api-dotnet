@@ -79,17 +79,31 @@ jobs:
       - name: Verify dynamic PostgreSQL credentials
         run: |
           dynamic_role="$(
-            docker compose -f docker-compose.yml -f docker-compose.vault.yml exec -T orders-db               sh -lc 'psql -U "$POSTGRES_USER" -d orders -Atc "SELECT rolname FROM pg_roles WHERE rolname LIKE '\''v-%'\'' ORDER BY rolname LIMIT 1;"'
+            docker compose -f docker-compose.yml -f docker-compose.vault.yml exec -T orders-db               sh -lc 'psql -U "$POSTGRES_USER" -d orders -Atc "SELECT member_role.rolname FROM pg_auth_members membership JOIN pg_roles granted_role ON granted_role.oid = membership.roleid JOIN pg_roles member_role ON member_role.oid = membership.member WHERE granted_role.rolname = '\''orders_runtime'\'' AND member_role.rolcanlogin ORDER BY member_role.rolname LIMIT 1;"'
           )"
-          test -n "$dynamic_role"
+
+          if [ -z "$dynamic_role" ]; then
+            echo "No temporary PostgreSQL login is a member of orders_runtime." >&2
+            exit 1
+          fi
+
+          echo "Dynamic PostgreSQL login detected through orders_runtime membership."
 
           application_connection_string="$(
             docker compose -f docker-compose.yml -f docker-compose.vault.yml exec -T orders-api               sh -lc 'printf %s "${ConnectionStrings__orders-db:-}"'
           )"
-          test -z "$application_connection_string"
+
+          if [ -n "$application_connection_string" ]; then
+            echo "Effective database connection string leaked into the application environment." >&2
+            exit 1
+          fi
+
+          echo "Application environment does not contain the effective database connection string."
 
           sleep 7
           docker compose -f docker-compose.yml -f docker-compose.vault.yml logs --no-color orders-api             | grep -q "Vault database credential lease renewed."
+
+          echo "Vault database lease renewal confirmed."
 
       - name: Smoke stack logs
         if: failure()
