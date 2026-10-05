@@ -25,7 +25,8 @@ O projeto foi desenhado intencionalmente em torno de preocupações arquiteturai
 flowchart TB
     User[Cliente / Consumidor]
     User --> Keycloak[Keycloak / OIDC]
-    Keycloak --> Orders[Orders API]
+    Keycloak --> Gateway[YARP API Gateway]
+    Gateway --> Orders[Orders API]
 
     Orders --> Rabbit[(RabbitMQ)]
     Rabbit --> Inventory[Inventory Service]
@@ -36,6 +37,21 @@ flowchart TB
     Orders --> OrdersDb[(Orders DB)]
     Inventory --> InventoryDb[(Inventory DB)]
     Payments --> PaymentsDb[(Payments DB)]
+
+    Vault[HashiCorp Vault] -. credenciais .-> Orders
+    Vault -. credenciais .-> Inventory
+    Vault -. credenciais .-> Payments
+    Vault -. credenciais .-> Notifications
+
+    Orders -. OTLP .-> Collector[OpenTelemetry Collector]
+    Inventory -. OTLP .-> Collector
+    Payments -. OTLP .-> Collector
+    Notifications -. OTLP .-> Collector
+    Gateway -. OTLP .-> Collector
+    Collector --> Tempo[Tempo]
+    Collector --> Prometheus[Prometheus]
+    Prometheus --> Grafana[Grafana]
+    Tempo --> Grafana
 ```
 
 ## Limites
@@ -163,13 +179,21 @@ O design prioriza:
 
 ## Identidade e autorização
 
-Keycloak atua como Identity Provider OpenID Connect na fronteira HTTP da Orders API.
+Keycloak atua como Identity Provider OpenID Connect. O YARP API Gateway valida o token na borda e a Orders API valida novamente o JWT, evitando confiar apenas na camada de proxy.
 
 A API valida JWT com emissor, audiência, assinatura e tempo de vida. A identidade de negócio é derivada da claim sub, e roles do realm são usadas em policies de autorização.
 
 A autorização não termina no endpoint: consultas de pedido verificam ownership do recurso, com bypass explícito apenas para a role admin.
 
 A configuração local usa um realm importável e versionado para tornar o comportamento reproduzível em Docker Compose e CI.
+
+## Gestão de segredos
+
+O perfil seguro usa HashiCorp Vault KV v2. Cada workload recebe um token independente por arquivo montado e uma policy que permite leitura apenas do próprio path. O building block `DistributedCommerce.Secrets` carrega os valores antes de configurar banco e mensageria.
+
+No ambiente local, o root token existe apenas para bootstrap do Vault em modo dev. Em produção, a preferência é autenticação de plataforma, como Kubernetes Auth, com tokens curtos, TLS, auditoria e rotação. AppRole é tratado como fallback quando identidade nativa da plataforma não está disponível.
+
+A comunicação entre serviços continua assíncrona por RabbitMQ; não foram introduzidas chamadas HTTP service-to-service apenas para demonstrar OAuth. Isso preserva os limites arquiteturais já existentes.
 
 ## Observabilidade
 
@@ -180,7 +204,7 @@ Um building block compartilhado de OpenTelemetry expõe:
 - métricas de processamento de mensagens;
 - exportação OTLP quando configurada.
 
-O design permanece independente do backend, permitindo alimentar sistemas como Grafana Tempo, Datadog, New Relic ou collectors nativos de cloud.
+O perfil local inclui OpenTelemetry Collector, Grafana Tempo, Prometheus e Grafana. O código continua backend-agnostic: trocar o backend não exige acoplar os serviços a um fornecedor.
 
 ## Modelo de deployment
 
