@@ -1,5 +1,5 @@
-using DistributedCommerce.ServiceDefaults;
 using DistributedCommerce.Secrets;
+using DistributedCommerce.ServiceDefaults;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 
