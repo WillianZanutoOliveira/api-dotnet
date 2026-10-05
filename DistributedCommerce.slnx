@@ -6,6 +6,7 @@
   <Project Path="src/BuildingBlocks/Secrets/Secrets.csproj" />
   <Project Path="src/Gateway/ApiGateway/ApiGateway.csproj" />
   <Project Path="src/Platform/DistributedCommerce.AppHost/DistributedCommerce.AppHost.csproj" />
+  <Project Path="src/Platform/DatabaseMigrator/DatabaseMigrator.csproj" />
   <Project Path="src/Services/Orders/Orders.Domain/Orders.Domain.csproj" />
   <Project Path="src/Services/Orders/Orders.Application/Orders.Application.csproj" />
   <Project Path="src/Services/Orders/Orders.Infrastructure/Orders.Infrastructure.csproj" />
