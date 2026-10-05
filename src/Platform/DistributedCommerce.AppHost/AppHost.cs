@@ -16,7 +16,18 @@ var tokenDirectories = new Dictionary<string, string>(StringComparer.Ordinal)
 };
 
 foreach (var directory in tokenDirectories.Values)
+{
     Directory.CreateDirectory(directory);
+
+    if (!OperatingSystem.IsWindows())
+    {
+        File.SetUnixFileMode(
+            directory,
+            UnixFileMode.UserRead |
+            UnixFileMode.UserWrite |
+            UnixFileMode.UserExecute);
+    }
+}
 
 var vaultRootToken = CreateGeneratedSecret(builder, "vault-dev-root-token");
 var ordersDbPassword = CreateGeneratedSecret(builder, "orders-db-password");
@@ -85,6 +96,7 @@ var vaultInit = builder
     .WithEnvironment("VAULT_ADDR", "http://vault:8200")
 #pragma warning restore S5332
     .WithEnvironment("VAULT_DEV_ROOT_TOKEN_ID", vaultRootToken)
+    .WithEnvironment("VAULT_TOKEN_FILE_MODE", "0444")
     .WithEnvironment("ORDERS_POSTGRES_USER", "postgres")
     .WithEnvironment("ORDERS_POSTGRES_PASSWORD", ordersDbPassword)
     .WithEnvironment("INVENTORY_POSTGRES_USER", "postgres")
