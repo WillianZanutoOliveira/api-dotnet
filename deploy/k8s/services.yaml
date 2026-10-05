@@ -20,8 +20,17 @@ spec:
       labels:
         app: orders-api
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: orders-api
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image: ghcr.io/example/distributed-commerce/orders:latest
           ports:
             - containerPort: 8080
@@ -37,7 +46,7 @@ spec:
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /health
+              path: /alive
               port: 8080
             periodSeconds: 20
           resources:
@@ -73,8 +82,17 @@ spec:
       labels:
         app: inventory-service
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: inventory-service
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image: ghcr.io/example/distributed-commerce/inventory:latest
           envFrom:
             - configMapRef:
@@ -87,7 +105,7 @@ spec:
               port: 8080
           livenessProbe:
             httpGet:
-              path: /health
+              path: /alive
               port: 8080
           resources:
             requests:
@@ -111,8 +129,17 @@ spec:
       labels:
         app: payments-service
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: payments-service
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image: ghcr.io/example/distributed-commerce/payments:latest
           envFrom:
             - configMapRef:
@@ -125,7 +152,7 @@ spec:
               port: 8080
           livenessProbe:
             httpGet:
-              path: /health
+              path: /alive
               port: 8080
           resources:
             requests:
@@ -149,8 +176,17 @@ spec:
       labels:
         app: notifications-service
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: notifications-service
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           image: ghcr.io/example/distributed-commerce/notifications:latest
           envFrom:
             - configMapRef:
@@ -163,7 +199,7 @@ spec:
               port: 8080
           livenessProbe:
             httpGet:
-              path: /health
+              path: /alive
               port: 8080
           resources:
             requests:
