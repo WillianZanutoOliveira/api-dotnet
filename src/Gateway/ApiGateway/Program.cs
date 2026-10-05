@@ -1,21 +1,45 @@
-using DistributedCommerce.Observability;
+using System.Threading.RateLimiting;
+using DistributedCommerce.ServiceDefaults;
+using Microsoft.AspNetCore.RateLimiting;
 using DistributedCommerce.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddPlatformIdentity(builder.Configuration);
-builder.Services.AddPlatformObservability(builder.Configuration, "api-gateway");
-builder.Services.AddHealthChecks();
+builder.AddPlatformServiceDefaults("api-gateway");
 builder.Services
     .AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy("authenticated-api", context =>
+        RateLimitPartition.GetTokenBucketLimiter(
+            partitionKey:
+                context.User.FindFirst("sub")?.Value ??
+                context.Connection.RemoteIpAddress?.ToString() ??
+                "unknown",
+            factory: static _ => new TokenBucketRateLimiterOptions
+            {
+                TokenLimit = 60,
+                TokensPerPeriod = 60,
+                ReplenishmentPeriod = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+});
 
 var app = builder.Build();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
-app.MapHealthChecks("/health");
-app.MapReverseProxy().RequireAuthorization();
+app.MapPlatformDefaultEndpoints();
+app.MapReverseProxy()
+    .RequireAuthorization()
+    .RequireRateLimiting("authenticated-api");
 
 await app.RunAsync();
