@@ -25,7 +25,8 @@ It is deliberately designed around architectural concerns that become important 
 flowchart TB
     User[Client / Consumer]
     User --> Keycloak[Keycloak / OIDC]
-    Keycloak --> Orders[Orders API]
+    Keycloak --> Gateway[YARP API Gateway]
+    Gateway --> Orders[Orders API]
 
     Orders --> Rabbit[(RabbitMQ)]
     Rabbit --> Inventory[Inventory Service]
@@ -36,6 +37,21 @@ flowchart TB
     Orders --> OrdersDb[(Orders DB)]
     Inventory --> InventoryDb[(Inventory DB)]
     Payments --> PaymentsDb[(Payments DB)]
+
+    Vault[HashiCorp Vault] -. credentials .-> Orders
+    Vault -. credentials .-> Inventory
+    Vault -. credentials .-> Payments
+    Vault -. credentials .-> Notifications
+
+    Orders -. OTLP .-> Collector[OpenTelemetry Collector]
+    Inventory -. OTLP .-> Collector
+    Payments -. OTLP .-> Collector
+    Notifications -. OTLP .-> Collector
+    Gateway -. OTLP .-> Collector
+    Collector --> Tempo[Tempo]
+    Collector --> Prometheus[Prometheus]
+    Prometheus --> Grafana[Grafana]
+    Tempo --> Grafana
 ```
 
 ## Boundaries
@@ -163,13 +179,21 @@ The design favors:
 
 ## Identity and authorization
 
-Keycloak acts as the OpenID Connect Identity Provider at the Orders API HTTP boundary.
+Keycloak acts as the OpenID Connect Identity Provider. The YARP API Gateway validates the token at the edge and Orders validates the JWT again, avoiding trust in the proxy layer alone.
 
 The API validates JWT issuer, audience, signature and lifetime. Business identity is derived from the token sub claim, and realm roles are used by authorization policies.
 
 Authorization does not stop at the endpoint: order queries verify resource ownership, with an explicit bypass only for the admin role.
 
 The local setup uses a versioned importable realm so behavior is reproducible in Docker Compose and CI.
+
+## Secrets management
+
+The secure profile uses HashiCorp Vault KV v2. Each workload receives an independent file-mounted token and a policy that can read only its own path. The `DistributedCommerce.Secrets` building block loads values before database and messaging composition.
+
+Locally, the root token exists only to bootstrap Vault in dev mode. Production should prefer platform authentication such as Kubernetes Auth, with short-lived tokens, TLS, auditing and rotation. AppRole is a fallback when native platform identity is unavailable.
+
+Service collaboration remains asynchronous through RabbitMQ; no synchronous service-to-service HTTP calls were introduced just to demonstrate OAuth. This preserves the existing architectural boundaries.
 
 ## Observability
 
@@ -180,7 +204,7 @@ A shared OpenTelemetry building block exposes:
 - message-processing metrics;
 - OTLP export when configured.
 
-The design stays backend-agnostic so the same code can feed systems such as Grafana Tempo, Datadog, New Relic or cloud-native collectors.
+The local profile includes OpenTelemetry Collector, Grafana Tempo, Prometheus and Grafana. The application code remains backend-agnostic so telemetry backends can change without coupling services to a vendor.
 
 ## Deployment model
 
