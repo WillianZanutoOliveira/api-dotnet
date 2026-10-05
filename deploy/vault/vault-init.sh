@@ -92,6 +92,10 @@ EOF
   mkdir -p "$token_dir"
   vault token create     -field=token     -policy="$service-service"     -ttl=24h     -renewable=true > "$token_dir/token"
   chmod "${VAULT_TOKEN_FILE_MODE:-0400}" "$token_dir/token"
+
+  if [ -n "${VAULT_TOKEN_FILE_OWNER:-}" ]; then
+    chown "$VAULT_TOKEN_FILE_OWNER" "$token_dir/token"
+  fi
 }
 
 write_policy_and_token orders platform/orders orders-app
