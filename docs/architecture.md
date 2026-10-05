@@ -277,3 +277,65 @@ Para manter clareza de portfólio, a primeira versão intencionalmente não incl
 - stack de operadores Kubernetes.
 
 Esses itens podem ser adicionados no futuro, mas não são necessários para demonstrar as preocupações de consistência distribuída e mensageria que estão no centro do projeto.
+
+
+## Service Defaults, resiliência HTTP e proteção de borda
+
+Todos os workloads usam o building block `src/BuildingBlocks/ServiceDefaults`.
+
+Ele centraliza:
+
+- OpenTelemetry;
+- readiness em `/health`;
+- liveness em `/alive`;
+- service discovery;
+- Standard Resilience Handler para `HttpClient`.
+
+O objetivo é evitar que um novo serviço nasça sem os padrões operacionais mínimos.
+
+O Gateway adiciona token-bucket rate limiting particionado por identidade autenticada. Esse controle é de borda e não substitui autorização de negócio dentro dos serviços.
+
+Orders expõe OpenAPI somente em Development. O documento é verificado pelo teste de topologia Aspire.
+
+Veja [ADR-0009](adr/0009-service-defaults-api-resilience.md).
+
+## Software supply chain e runtime hardening
+
+A cadeia de entrega aplica controles em diferentes camadas:
+
+```text
+source
+  |
+  +--> CodeQL
+  +--> Trivy
+  +--> SBOM
+  +--> OpenSSF Scorecard
+  |
+  v
+GitHub Actions pinadas por SHA
+  |
+  v
+build de imagens
+  |
+  v
+containers .NET non-root
+  |
+  v
+tag v*
+  |
+  v
+GHCR + provenance attestation
+```
+
+As imagens .NET são executadas com o usuário non-root fornecido pelas imagens oficiais. No Compose com Vault, os token files são entregues com ownership numérico compatível com o workload.
+
+Os manifests Kubernetes usam:
+
+- `runAsNonRoot: true`;
+- `seccompProfile: RuntimeDefault`;
+- `allowPrivilegeEscalation: false`;
+- drop de todas as capabilities Linux;
+- readiness em `/health`;
+- liveness em `/alive`.
+
+Veja [ADR-0010](adr/0010-software-supply-chain.md).
