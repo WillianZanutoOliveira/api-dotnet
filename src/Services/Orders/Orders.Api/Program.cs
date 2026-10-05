@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using DistributedCommerce.Observability;
+using DistributedCommerce.Secrets;
 using DistributedCommerce.Security;
 using MassTransit;
 using Orders.Api;
@@ -7,6 +8,7 @@ using Orders.Application;
 using Orders.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
+await builder.Configuration.AddVaultSecretsAsync();
 
 var ordersConnection = builder.Configuration.GetConnectionString("orders-db")
     ?? "Host=localhost;Port=5432;Database=orders;Username=postgres;Password=postgres";
