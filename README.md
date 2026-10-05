@@ -4,13 +4,14 @@
 
 # Distributed Commerce Platform
 
-### .NET 10 · Clean Architecture · YARP · RabbitMQ · Keycloak · Vault · OpenTelemetry · AI Engineering Harness
+### .NET 10 · Aspire · Clean Architecture · YARP · RabbitMQ · Keycloak · Vault · OpenTelemetry · AI Engineering Harness
 
 [![CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)
 ![Services](https://img.shields.io/badge/Services-4-2563EB)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-3%20Databases-4169E1?logo=postgresql&logoColor=white)
 ![RabbitMQ](https://img.shields.io/badge/RabbitMQ-MassTransit-FF6600?logo=rabbitmq&logoColor=white)
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-OTLP--ready-7C3AED)
+![Aspire](https://img.shields.io/badge/Local%20Dev-Aspire%2013.6-512BD4?logo=dotnet&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-4%20Images-2496ED?logo=docker&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-Examples-326CE5?logo=kubernetes&logoColor=white)
 ![Keycloak](https://img.shields.io/badge/Identity-Keycloak-4D4D4D?logo=keycloak&logoColor=white)
@@ -18,7 +19,7 @@
 ![Sonar](https://img.shields.io/badge/Clean%20Code-Sonar-126ED3?logo=sonarqubecloud&logoColor=white)
 ![AI Harness](https://img.shields.io/badge/AI%20Harness-Codex%20%2B%20GitHub%20Actions-111827)
 
-**[Arquitetura](docs/architecture.md) · [Walkthrough técnico de 5 minutos](docs/recruiter-guide.md) · [ADRs](docs/adr) · [Kubernetes](deploy/k8s) · [CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)**
+**[Arquitetura](docs/architecture.md) · [Desenvolvimento local](docs/local-development.md) · [Walkthrough técnico de 5 minutos](docs/recruiter-guide.md) · [ADRs](docs/adr) · [Kubernetes](deploy/k8s) · [CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)**
 
 </div>
 
@@ -56,6 +57,7 @@ O objetivo é tornar visível, em um portfólio público, engenharia backend de 
 - credenciais PostgreSQL dinâmicas com Database Secrets Engine, TTL, lease renewal e revogação;
 - traces e métricas com OpenTelemetry, Tempo, Prometheus e Grafana;
 - Docker e Docker Compose;
+- orquestração local com .NET Aspire 13.6 e dashboard integrado;
 - health endpoints preparados para Kubernetes;
 - quality gates em CI/CD;
 - testes automatizados, cobertura e integração com PostgreSQL real via Testcontainers;
@@ -198,24 +200,35 @@ Paid  Failed
 
 ## Executando localmente
 
-### Requisitos
+### Caminho recomendado: .NET Aspire
 
-- Docker Desktop / Docker Engine
-- Docker Compose
+Requisitos:
 
-Crie o arquivo local de segredos:
+- .NET 10 SDK;
+- Docker ou Podman compatível com Aspire.
+
+Inicie toda a plataforma com um comando:
+
+```bash
+dotnet run --project src/Platform/DistributedCommerce.AppHost
+```
+
+O AppHost sobe PostgreSQL, RabbitMQ, Keycloak e Vault, executa o bootstrap das credenciais dinâmicas, inicia Gateway + quatro serviços como projetos locais e abre o Aspire Dashboard com logs, traces, métricas, endpoints e estado dos recursos.
+
+As senhas administrativas locais são geradas pelo secret store do Aspire; os tokens scoped do Vault são gravados apenas em `.aspire/vault-tokens`, diretório ignorado pelo Git.
+
+Veja o [guia completo de desenvolvimento local](docs/local-development.md) e o [ADR-0008](docs/adr/0008-dotnet-aspire-local-orchestration.md).
+
+### Caminho de paridade/CI: Docker Compose
+
+O Compose seguro continua sendo suportado e é o caminho exercitado pelo CI:
 
 ```bash
 cp .env.example .env
-```
-
-Altere os placeholders locais e execute o perfil seguro com Vault:
-
-```bash
 docker compose -f docker-compose.yml -f docker-compose.vault.yml up --build
 ```
 
-O `docker-compose.yml` simples continua disponível para estudo; o overlay `docker-compose.vault.yml` é o caminho usado para demonstrar gestão de segredos.
+O `docker-compose.yml` simples continua disponível para estudo; o overlay `docker-compose.vault.yml` mantém Vault e credenciais PostgreSQL dinâmicas.
 
 Endpoints:
 
@@ -308,7 +321,7 @@ Veja [ADR-0005](docs/adr/0005-ai-engineering-harness.md).
 
 ## Observabilidade
 
-Todos os serviços usam um building block compartilhado de OpenTelemetry. O perfil local inclui OpenTelemetry Collector, Tempo, Prometheus e Grafana, permitindo inspecionar telemetria end-to-end com:
+Todos os serviços usam um building block compartilhado de OpenTelemetry. No inner loop com Aspire, o Dashboard agrega recursos, logs, traces e métricas. O perfil Docker Compose continua incluindo OpenTelemetry Collector, Tempo, Prometheus e Grafana para demonstrar uma topologia de observabilidade independente do Aspire, com:
 
 - `ActivitySource` para spans de trace distribuído;
 - métricas customizadas de processamento de mensagens;
@@ -367,6 +380,7 @@ RabbitMQ e PostgreSQL são tratados como dependências de plataforma que, em pro
 - [ADR-0005 — Harness de engenharia assistida por IA](docs/adr/0005-ai-engineering-harness.md)
 - [ADR-0006 — Gestão centralizada de segredos com HashiCorp Vault](docs/adr/0006-secrets-hashicorp-vault.md)
 - [ADR-0007 — Credenciais PostgreSQL dinâmicas com Vault Database Secrets Engine](docs/adr/0007-dynamic-postgresql-credentials.md)
+- [ADR-0008 — .NET Aspire como orquestrador de desenvolvimento local](docs/adr/0008-dotnet-aspire-local-orchestration.md)
 
 ---
 
@@ -381,6 +395,8 @@ src/
 │   └── Secrets/
 ├── Gateway/
 │   └── ApiGateway/
+├── Platform/
+│   └── DistributedCommerce.AppHost/
 └── Services/
     ├── Orders/
     │   ├── Orders.Domain/
