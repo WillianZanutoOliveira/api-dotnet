@@ -10,7 +10,7 @@ Required workflow:
 3. implement the smallest coherent diff;
 4. add/update tests when behavior changes;
 5. update public documentation and ADRs when architecture changes;
-6. run restore, Release build, tests and docker compose config;
+6. run restore, Release build, dotnet format verification, tests and docker compose config;
 7. fix failures caused by your change;
 8. leave the working tree with only the intended task changes.
 
