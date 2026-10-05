@@ -15,6 +15,9 @@ Required workflow:
 8. leave the working tree with only the intended task changes.
 
 Never:
+- replace commit-pinned GitHub Actions with mutable tags;
+- remove non-root container execution or Kubernetes securityContext hardening;
+- bypass shared Service Defaults, liveness/readiness separation or Gateway rate limiting merely to simplify a task;
 - break Aspire/Compose topology parity or bypass Keycloak, Vault or dynamic PostgreSQL credentials to make local startup easier;
 - replace dynamic PostgreSQL identities with long-lived passwords or bypass Vault database lease renewal;
 - bypass the Vault/platform secret boundary or reintroduce effective service credentials into appsettings or application-container environment values;
