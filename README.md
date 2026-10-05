@@ -4,7 +4,7 @@
 
 # Distributed Commerce Platform
 
-### .NET 10 · Clean Architecture · RabbitMQ · Keycloak · Event-Driven Architecture · AI Engineering Harness
+### .NET 10 · Clean Architecture · YARP · RabbitMQ · Keycloak · Vault · OpenTelemetry · AI Engineering Harness
 
 [![CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)
 ![Services](https://img.shields.io/badge/Services-4-2563EB)
@@ -14,6 +14,8 @@
 ![Docker](https://img.shields.io/badge/Docker-4%20Images-2496ED?logo=docker&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-Examples-326CE5?logo=kubernetes&logoColor=white)
 ![Keycloak](https://img.shields.io/badge/Identity-Keycloak-4D4D4D?logo=keycloak&logoColor=white)
+![Vault](https://img.shields.io/badge/Secrets-Vault-FFEC6E?logo=vault&logoColor=black)
+![Sonar](https://img.shields.io/badge/Clean%20Code-Sonar-126ED3?logo=sonarqubecloud&logoColor=white)
 ![AI Harness](https://img.shields.io/badge/AI%20Harness-Codex%20%2B%20GitHub%20Actions-111827)
 
 **[Arquitetura](docs/architecture.md) · [Walkthrough técnico de 5 minutos](docs/recruiter-guide.md) · [ADRs](docs/adr) · [Kubernetes](deploy/k8s) · [CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)**
@@ -49,11 +51,15 @@ O objetivo é tornar visível, em um portfólio público, engenharia backend de 
 - retries e isolamento de falhas;
 - database-per-service;
 - PostgreSQL;
-- traces e métricas com OpenTelemetry;
+- API Gateway com YARP e autenticação na borda;
+- gestão centralizada de segredos com HashiCorp Vault e policies por workload;
+- traces e métricas com OpenTelemetry, Tempo, Prometheus e Grafana;
 - Docker e Docker Compose;
 - health endpoints preparados para Kubernetes;
 - quality gates em CI/CD;
-- testes automatizados e cobertura;
+- testes automatizados, cobertura e integração com PostgreSQL real via Testcontainers;
+- Clean Code com SonarAnalyzer, .editorconfig e dotnet format;
+- DevSecOps com CodeQL, Trivy e geração de SBOM;
 - autenticação OpenID Connect, validação JWT, RBAC e autorização por recurso com Keycloak;
 - harness de engenharia assistida por IA com build/test e entrega somente por pull request;
 - registros de decisões arquiteturais.
@@ -65,7 +71,8 @@ O objetivo é tornar visível, em um portfólio público, engenharia backend de 
 ```mermaid
 flowchart LR
     Client[Cliente] --> Keycloak[Keycloak / OIDC]
-    Keycloak --> Orders[Orders API]
+    Keycloak --> Gateway[YARP API Gateway]
+    Gateway --> Orders[Orders API]
 
     Orders --> ODB[(Orders PostgreSQL)]
     Orders -- OrderSubmitted --> Rabbit[(RabbitMQ)]
@@ -80,6 +87,11 @@ flowchart LR
 
     Rabbit --> Orders
     Rabbit --> Notifications[Notifications Service]
+
+    Vault[HashiCorp Vault] -. segredos .-> Orders
+    Vault -. segredos .-> Inventory
+    Vault -. segredos .-> Payments
+    Vault -. segredos .-> Notifications
 
     Orders -. traces/métricas .-> OTel[OpenTelemetry]
     Inventory -. traces/métricas .-> OTel
@@ -196,16 +208,19 @@ Crie o arquivo local de segredos:
 cp .env.example .env
 ```
 
-Altere as senhas de exemplo e execute:
+Altere os placeholders locais e execute o perfil seguro com Vault:
 
 ```bash
-docker compose up --build
+docker compose -f docker-compose.yml -f docker-compose.vault.yml up --build
 ```
+
+O `docker-compose.yml` simples continua disponível para estudo; o overlay `docker-compose.vault.yml` é o caminho usado para demonstrar gestão de segredos.
 
 Endpoints:
 
 | Componente | URL |
 | --- | --- |
+| API Gateway | http://localhost:8080 |
 | Orders API | http://localhost:8081 |
 | Orders health | http://localhost:8081/health |
 | Inventory health | http://localhost:8082/health |
@@ -213,6 +228,10 @@ Endpoints:
 | Notifications health | http://localhost:8084/health |
 | RabbitMQ Management | http://localhost:15672 |
 | Keycloak | http://localhost:8180 |
+| Vault | http://localhost:8200 |
+| Grafana | http://localhost:3000 |
+| Prometheus | http://localhost:9090 |
+| Tempo | http://localhost:3200 |
 
 Obtenha um token do usuário local de demonstração:
 
@@ -228,7 +247,7 @@ TOKEN=$(curl -s -X POST http://localhost:8180/realms/distributed-commerce/protoc
 Crie um pedido autenticado. O CustomerId é derivado da claim sub do token e não é aceito do payload:
 
 ```bash
-curl -X POST http://localhost:8081/orders \
+curl -X POST http://localhost:8080/api/orders \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -241,7 +260,7 @@ curl -X POST http://localhost:8081/orders \
 Consulte o status assíncrono:
 
 ```bash
-curl http://localhost:8081/orders/{order-id} \
+curl http://localhost:8080/api/orders/{order-id} \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -266,6 +285,12 @@ O realm local versionado existe para demonstração e smoke tests. O fluxo de se
 
 Veja [ADR-0004](docs/adr/0004-identity-keycloak.md).
 
+### Cofre de segredos
+
+O perfil seguro usa HashiCorp Vault KV v2. Cada serviço recebe um token próprio por arquivo montado e uma policy que permite leitura apenas do path correspondente. As credenciais efetivas de PostgreSQL e RabbitMQ são carregadas pelo building block `DistributedCommerce.Secrets` antes da composição das dependências.
+
+Em produção, o modo dev/root token não é usado: a preferência é identidade de plataforma (por exemplo, Kubernetes Auth), tokens curtos, TLS, auditoria e rotação. Veja [gestão de segredos](docs/secrets-management.md) e [ADR-0006](docs/adr/0006-secrets-hashicorp-vault.md).
+
 ---
 
 ## AI Engineering Harness
@@ -280,7 +305,7 @@ Veja [ADR-0005](docs/adr/0005-ai-engineering-harness.md).
 
 ## Observabilidade
 
-Todos os serviços usam um building block compartilhado de OpenTelemetry com:
+Todos os serviços usam um building block compartilhado de OpenTelemetry. O perfil local inclui OpenTelemetry Collector, Tempo, Prometheus e Grafana, permitindo inspecionar telemetria end-to-end com:
 
 - `ActivitySource` para spans de trace distribuído;
 - métricas customizadas de processamento de mensagens;
@@ -299,11 +324,15 @@ O GitHub Actions valida toda mudança relevante com:
 2. build em Release;
 3. testes automatizados;
 4. coleta de cobertura de código;
-5. build do container de Orders;
-6. build do container de Inventory;
-7. build do container de Payments;
-8. build do container de Notifications;
-9. smoke test real de autenticação, ownership e acesso administrativo.
+5. quality gate Sonar/.editorconfig/dotnet format;
+6. testes de integração com Testcontainers;
+7. build do container de API Gateway;
+8. build do container de Orders;
+9. build do container de Inventory;
+10. build do container de Payments;
+11. build do container de Notifications;
+12. smoke test real via Gateway + Keycloak + Vault;
+13. workflow de segurança com CodeQL, Trivy e SBOM.
 
 O Dependabot monitora dependências NuGet e GitHub Actions.
 
@@ -332,6 +361,7 @@ RabbitMQ e PostgreSQL são tratados como dependências de plataforma que, em pro
 - [ADR-0003 — Idempotência e consistência eventual](docs/adr/0003-idempotency-eventual-consistency.md)
 - [ADR-0004 — Identidade e autorização com Keycloak](docs/adr/0004-identity-keycloak.md)
 - [ADR-0005 — Harness de engenharia assistida por IA](docs/adr/0005-ai-engineering-harness.md)
+- [ADR-0006 — Gestão centralizada de segredos com HashiCorp Vault](docs/adr/0006-secrets-hashicorp-vault.md)
 
 ---
 
@@ -342,7 +372,10 @@ src/
 ├── BuildingBlocks/
 │   ├── Contracts/
 │   ├── Observability/
-│   └── Security/
+│   ├── Security/
+│   └── Secrets/
+├── Gateway/
+│   └── ApiGateway/
 └── Services/
     ├── Orders/
     │   ├── Orders.Domain/
