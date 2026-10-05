@@ -313,6 +313,23 @@ Production does not use dev mode/root tokens: prefer platform identity (for exam
 
 ---
 
+## Database migrations and least privilege
+
+Schema creation no longer belongs to application runtime. Orders, Inventory and Payments have committed **EF Core Migrations** plus a one-shot `DatabaseMigrator`.
+
+The identity split is explicit:
+
+```text
+Vault <service>-migration -> temporary login -> <service>_migrator -> DDL
+Vault <service>-app       -> temporary login -> <service>_runtime  -> DML only
+```
+
+Compose and Aspire wait for migration completion before starting the workload. The Kubernetes/GitOps model executes the same migrator as an Argo CD `PreSync` Job. CI fails if `EnsureCreatedAsync` returns or if runtime regains schema `CREATE`.
+
+See [ADR-0011](docs/adr/0011-ef-migrations-vault-deployment-identity.en.md).
+
+---
+
 ## Service Defaults and edge protection
 
 All workloads use a shared Aspire-aligned building block:
@@ -336,7 +353,7 @@ Beyond CodeQL, Trivy and SBOM generation, the repository automates:
 - weekly OpenSSF Scorecard with SARIF/Code Scanning results;
 - immutable-SHA GitHub Action references;
 - `CODEOWNERS` and `SECURITY.md`;
-- automatic publishing of five OCI images to GHCR on `v*` tags;
+- automatic publishing of six OCI images to GHCR on `v*` tags;
 - cryptographic provenance attestation for each OCI digest through GitHub OIDC + Sigstore.
 
 Example release:
@@ -399,6 +416,37 @@ Dependabot monitors NuGet and GitHub Actions dependencies.
 
 ---
 
+## Architecture, contract and chaos tests
+
+Executable quality gates protect properties beyond ordinary unit tests:
+
+- **Architecture Tests** block forbidden dependencies across layers and bounded contexts;
+- **Contract Compatibility Tests** guard the public shape of published integration events;
+- **Chaos Tests** use Testcontainers + Toxiproxy to cut and restore PostgreSQL connectivity and assert failure/recovery.
+
+See [ADR-0012](docs/adr/0012-architecture-contract-chaos-gitops.en.md).
+
+---
+
+## GitOps and canary delivery
+
+`deploy/gitops` demonstrates **Argo CD + Argo Rollouts + Vault Kubernetes Auth**:
+
+```text
+v* tag
+  -> GHCR images/attestations
+  -> GitOps Promotion opens PR
+  -> review + merge
+  -> Argo CD PreSync migration
+  -> 20% canary -> analysis -> 50% -> analysis -> 100%
+```
+
+CI never imperatively deploys production. Git is the source of truth and the promotion workflow never auto-merges.
+
+See the [GitOps guide](deploy/gitops/README.en.md) and [ADR-0012](docs/adr/0012-architecture-contract-chaos-gitops.en.md).
+
+---
+
 ## Performance baseline
 
 The [Performance Baseline](.github/workflows/performance.yml) workflow runs k6 weekly or on demand against Orders using the secure Keycloak/Vault/PostgreSQL/RabbitMQ stack.
@@ -437,6 +485,8 @@ RabbitMQ and PostgreSQL are treated as platform dependencies that would normally
 - [ADR-0008 — .NET Aspire as the local development orchestrator](docs/adr/0008-dotnet-aspire-local-orchestration.en.md)
 - [ADR-0009 — Service Defaults, health model, OpenAPI and edge protection](docs/adr/0009-service-defaults-api-resilience.en.md)
 - [ADR-0010 — Software supply chain and attested releases](docs/adr/0010-software-supply-chain.en.md)
+- [ADR-0011 — EF Core Migrations with a separate Vault deployment identity](docs/adr/0011-ef-migrations-vault-deployment-identity.en.md)
+- [ADR-0012 — Architecture guardrails, contracts, fault injection and progressive delivery](docs/adr/0012-architecture-contract-chaos-gitops.en.md)
 
 ---
 
@@ -452,7 +502,8 @@ src/
 ├── Gateway/
 │   └── ApiGateway/
 ├── Platform/
-│   └── DistributedCommerce.AppHost/
+│   ├── DistributedCommerce.AppHost/
+│   └── DatabaseMigrator/
 └── Services/
     ├── Orders/
     │   ├── Orders.Domain/
@@ -464,7 +515,12 @@ src/
     └── Notifications/
 
 tests/
-└── Orders.Domain.Tests/
+├── Architecture.Tests/
+├── Chaos.Tests/
+├── Contracts.Compatibility.Tests/
+├── DistributedCommerce.AppHost.Tests/
+├── Orders.Domain.Tests/
+└── Orders.Persistence.IntegrationTests/
 
 docs/
 ├── architecture.md
