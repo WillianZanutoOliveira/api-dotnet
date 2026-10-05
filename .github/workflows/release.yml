@@ -35,6 +35,8 @@ jobs:
             dockerfile: src/Services/Payments/Payments.Service/Dockerfile
           - image: notifications
             dockerfile: src/Services/Notifications/Notifications.Service/Dockerfile
+          - image: database-migrator
+            dockerfile: src/Platform/DatabaseMigrator/Dockerfile
 
     steps:
       - name: Checkout
