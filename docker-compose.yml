@@ -38,7 +38,7 @@ services:
       timeout: 5s
       retries: 20
     volumes:
-      - orders-data:/var/lib/postgresql/data
+      - orders-data:/var/lib/postgresql
 
   inventory-db:
     image: postgres:18-alpine
@@ -54,7 +54,7 @@ services:
       timeout: 5s
       retries: 20
     volumes:
-      - inventory-data:/var/lib/postgresql/data
+      - inventory-data:/var/lib/postgresql
 
   payments-db:
     image: postgres:18-alpine
@@ -70,7 +70,7 @@ services:
       timeout: 5s
       retries: 20
     volumes:
-      - payments-data:/var/lib/postgresql/data
+      - payments-data:/var/lib/postgresql
 
   orders-api:
     build:
