@@ -90,7 +90,7 @@ jobs:
           echo "Dynamic PostgreSQL login detected through orders_runtime membership."
 
           application_connection_string="$(
-            docker compose -f docker-compose.yml -f docker-compose.vault.yml exec -T orders-api               sh -lc 'printf %s "${ConnectionStrings__orders-db:-}"'
+            docker compose -f docker-compose.yml -f docker-compose.vault.yml exec -T orders-api               sh -lc 'printenv "ConnectionStrings__orders-db" || true'
           )"
 
           if [ -n "$application_connection_string" ]; then
