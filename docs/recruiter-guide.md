@@ -216,3 +216,30 @@ Ele é uma referência pública de engenharia criada para tornar inspecionáveis
 - entrega containerizada;
 - quality gates em CI;
 - trade-offs técnicos explícitos.
+
+
+## 12. Service Defaults, contrato e proteção de borda
+
+Evidências:
+
+- [Service Defaults](../src/BuildingBlocks/ServiceDefaults/PlatformServiceDefaults.cs)
+- [Gateway com rate limiting](../src/Gateway/ApiGateway/Program.cs)
+- [Orders OpenAPI](../src/Services/Orders/Orders.Api/Program.cs)
+- [Teste de topologia Aspire](../tests/DistributedCommerce.AppHost.Tests/LocalTopologyTests.cs)
+- [ADR-0009](./adr/0009-service-defaults-api-resilience.md)
+
+O projeto demonstra readiness/liveness separados, service discovery, resiliência HTTP default, rate limiting por identidade e contrato OpenAPI verificável.
+
+## 13. Software supply chain e container hardening
+
+Evidências:
+
+- [OpenSSF Scorecard](../.github/workflows/scorecard.yml)
+- [Security pipeline](../.github/workflows/security.yml)
+- [Release OCI atestado](../.github/workflows/release.yml)
+- [CODEOWNERS](../.github/CODEOWNERS)
+- [Security Policy](../SECURITY.md)
+- [Kubernetes hardening](../deploy/k8s/services.yaml)
+- [ADR-0010](./adr/0010-software-supply-chain.md)
+
+O repositório demonstra pinning de GitHub Actions por commit, CodeQL, Trivy, SBOM, OpenSSF Scorecard, containers non-root, Kubernetes securityContext e provenance attestations para imagens publicadas.
