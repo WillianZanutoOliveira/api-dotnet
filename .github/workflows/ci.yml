@@ -29,6 +29,9 @@ jobs:
       - name: Build
         run: dotnet build DistributedCommerce.slnx --configuration Release --no-restore
 
+      - name: Validate Aspire AppHost
+        run: dotnet build src/Platform/DistributedCommerce.AppHost/DistributedCommerce.AppHost.csproj --configuration Release --no-restore
+
       - name: Verify formatting and analyzers
         run: dotnet format DistributedCommerce.slnx --verify-no-changes --no-restore --severity warn
 
