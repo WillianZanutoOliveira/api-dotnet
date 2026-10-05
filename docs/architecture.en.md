@@ -339,3 +339,76 @@ Kubernetes examples use:
 - liveness at `/alive`.
 
 See [ADR-0010](adr/0010-software-supply-chain.en.md).
+
+
+## Schema lifecycle and migration identity
+
+Application runtime does not create or migrate database schema.
+
+```text
+PostgreSQL
+   |
+   +--> <service>_migrator (NOLOGIN, DDL)
+   |        ^
+   |        |
+   |     Vault <service>-migration
+   |        ^
+   |        |
+   |  one-shot DatabaseMigrator
+   |
+   +--> <service>_runtime (NOLOGIN, DML)
+            ^
+            |
+         Vault <service>-app
+            ^
+            |
+        application
+```
+
+EF Core Migrations are committed per bounded context. `DatabaseMigrator` runs before Orders, Inventory and Payments in Compose/Aspire; the GitOps model runs it as an Argo CD `PreSync` Job.
+
+Default privileges grant runtime DML on migration-created objects without giving application runtime DDL.
+
+See [ADR-0011](adr/0011-ef-migrations-vault-deployment-identity.en.md).
+
+## Executable guardrails
+
+Three additional layers protect architecture:
+
+- `Architecture.Tests` blocks forbidden dependencies;
+- `Contracts.Compatibility.Tests` guards integration-event shapes;
+- `Chaos.Tests` validates PostgreSQL connectivity failure and recovery with Testcontainers + Toxiproxy.
+
+These tests execute through the normal CI `dotnet test`.
+
+## GitOps and progressive delivery
+
+The production example under `deploy/gitops` separates:
+
+```text
+build artifact
+    |
+    v
+versioned OCI image + attestation
+    |
+    v
+promotion PR
+    |
+    v
+main
+    |
+    v
+Argo CD reconciliation
+    |
+    +--> PreSync database migration
+    |
+    v
+Argo Rollouts canary
+20% -> health analysis -> 50% -> health analysis -> 100%
+```
+
+Runtime and migration use separate Kubernetes ServiceAccounts and Vault Kubernetes Auth roles.
+
+Canary analysis targets `orders-api-canary/health/deployment`. Without a dedicated traffic router, this example uses replica-based approximate weights; environments requiring exact traffic percentages should integrate a supported ingress/service mesh.
+
+See [ADR-0012](adr/0012-architecture-contract-chaos-gitops.en.md) and [deploy/gitops](../deploy/gitops/README.en.md).
