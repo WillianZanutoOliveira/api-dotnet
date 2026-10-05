@@ -164,3 +164,17 @@ docker compose -f docker-compose.yml -f docker-compose.vault.yml config
 dotnet build DistributedCommerce.slnx --configuration Release
 dotnet test DistributedCommerce.slnx --configuration Release
 ```
+
+
+### Endpoints operacionais padronizados
+
+Todos os workloads web usam:
+
+- `/health` — readiness;
+- `/alive` — liveness.
+
+Orders também publica, somente em Development:
+
+- `/openapi/v1.json` — contrato OpenAPI.
+
+O teste de topologia Aspire valida automaticamente esses endpoints.
