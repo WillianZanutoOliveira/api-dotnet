@@ -139,14 +139,7 @@ Também verifique se outro `dotnet run` do projeto continua ativo.
 
 ## Reset local
 
-Tokens do Vault são efêmeros. Para limpar apenas o estado gerado pelo Aspire:
-
-```text
-.apire/  ← não use este caminho
-.aspire/ ← caminho correto
-```
-
-Apague a pasta `.aspire` somente com o AppHost parado. Ela será recriada no próximo start.
+Tokens do Vault são efêmeros. Para limpar apenas o estado gerado pelo Aspire, pare o AppHost e apague a pasta `.aspire/`. Ela será recriada no próximo start.
 
 Containers e volumes devem ser limpos pelo Docker/Podman quando necessário.
 
