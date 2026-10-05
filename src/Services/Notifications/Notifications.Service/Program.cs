@@ -1,4 +1,5 @@
 using DistributedCommerce.Observability;
+using DistributedCommerce.Secrets;
 using MassTransit;
 
 namespace Notifications.Service;
@@ -8,6 +9,7 @@ public static partial class Program
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+        await builder.Configuration.AddVaultSecretsAsync();
 
         var rabbitHost = builder.Configuration["RabbitMq:Host"] ?? "localhost";
         var rabbitUser = builder.Configuration["RabbitMq:Username"] ?? "guest";
