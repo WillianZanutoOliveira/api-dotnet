@@ -116,13 +116,37 @@ The CI pipeline validates:
 - code coverage;
 - four Docker image builds.
 
-## 7. Architecture decisions
+## 7. Security and identity
+
+Useful evidence:
+
+- [Security building block](../src/BuildingBlocks/Security/KeycloakAuthenticationExtensions.cs)
+- [Versioned local realm](../deploy/keycloak/distributed-commerce-realm.json)
+- [Authentication/authorization smoke test](../scripts/auth-smoke.sh)
+- [Identity ADR](./adr/0004-identity-keycloak.en.md)
+
+The project demonstrates JWT validation, audience/issuer checks, RBAC and object-level authorization. CustomerId is not trusted from the payload: it comes from the authenticated sub.
+
+## 8. AI engineering automation
+
+Useful evidence:
+
+- [AGENTS.md](../AGENTS.md)
+- [Engineering constitution](../.ai/engineering-constitution.md)
+- [AI Evolution Harness workflow](../.github/workflows/ai-evolution.yml)
+- [Harness ADR](./adr/0005-ai-engineering-harness.en.md)
+
+The agent can implement changes in an isolated workspace, but it must pass quality gates and can only deliver through a branch + pull request. There is no auto-merge.
+
+## 9. Architecture decisions
 
 The ADRs document trade-offs instead of only implementation details:
 
 - [ADR-0001 — Event-driven services and Clean Architecture](./adr/0001-event-driven-clean-architecture.en.md)
 - [ADR-0002 — Transactional Outbox](./adr/0002-transactional-outbox.en.md)
 - [ADR-0003 — Idempotency and eventual consistency](./adr/0003-idempotency-eventual-consistency.en.md)
+- [ADR-0004 — Identity and authorization with Keycloak](./adr/0004-identity-keycloak.en.md)
+- [ADR-0005 — AI-assisted engineering harness](./adr/0005-ai-engineering-harness.en.md)
 
 ## What this repository is intended to demonstrate
 

@@ -24,7 +24,8 @@ O projeto foi desenhado intencionalmente em torno de preocupações arquiteturai
 ```mermaid
 flowchart TB
     User[Cliente / Consumidor]
-    User --> Orders[Orders API]
+    User --> Keycloak[Keycloak / OIDC]
+    Keycloak --> Orders[Orders API]
 
     Orders --> Rabbit[(RabbitMQ)]
     Rabbit --> Inventory[Inventory Service]
@@ -160,6 +161,16 @@ O design prioriza:
 - falhas observáveis;
 - possibilidade de replay.
 
+## Identidade e autorização
+
+Keycloak atua como Identity Provider OpenID Connect na fronteira HTTP da Orders API.
+
+A API valida JWT com emissor, audiência, assinatura e tempo de vida. A identidade de negócio é derivada da claim sub, e roles do realm são usadas em policies de autorização.
+
+A autorização não termina no endpoint: consultas de pedido verificam ownership do recurso, com bypass explícito apenas para a role admin.
+
+A configuração local usa um realm importável e versionado para tornar o comportamento reproduzível em Docker Compose e CI.
+
 ## Observabilidade
 
 Um building block compartilhado de OpenTelemetry expõe:
@@ -190,7 +201,6 @@ Para manter clareza de portfólio, a primeira versão intencionalmente não incl
 - frontend;
 - provedor real de pagamentos;
 - service mesh;
-- autenticação/autorização completas;
 - Event Sourcing;
 - stack de operadores Kubernetes.
 

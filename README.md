@@ -4,7 +4,7 @@
 
 # Distributed Commerce Platform
 
-### .NET 10 · Clean Architecture · RabbitMQ · Event-Driven Architecture
+### .NET 10 · Clean Architecture · RabbitMQ · Keycloak · Event-Driven Architecture · AI Engineering Harness
 
 [![CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)
 ![Services](https://img.shields.io/badge/Services-4-2563EB)
@@ -13,6 +13,8 @@
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-OTLP--ready-7C3AED)
 ![Docker](https://img.shields.io/badge/Docker-4%20Images-2496ED?logo=docker&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-Examples-326CE5?logo=kubernetes&logoColor=white)
+![Keycloak](https://img.shields.io/badge/Identity-Keycloak-4D4D4D?logo=keycloak&logoColor=white)
+![AI Harness](https://img.shields.io/badge/AI%20Harness-Codex%20%2B%20GitHub%20Actions-111827)
 
 **[Arquitetura](docs/architecture.md) · [Walkthrough técnico de 5 minutos](docs/recruiter-guide.md) · [ADRs](docs/adr) · [Kubernetes](deploy/k8s) · [CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)**
 
@@ -52,6 +54,8 @@ O objetivo é tornar visível, em um portfólio público, engenharia backend de 
 - health endpoints preparados para Kubernetes;
 - quality gates em CI/CD;
 - testes automatizados e cobertura;
+- autenticação OpenID Connect, validação JWT, RBAC e autorização por recurso com Keycloak;
+- harness de engenharia assistida por IA com build/test e entrega somente por pull request;
 - registros de decisões arquiteturais.
 
 ---
@@ -60,7 +64,8 @@ O objetivo é tornar visível, em um portfólio público, engenharia backend de 
 
 ```mermaid
 flowchart LR
-    Client[Cliente] --> Orders[Orders API]
+    Client[Cliente] --> Keycloak[Keycloak / OIDC]
+    Keycloak --> Orders[Orders API]
 
     Orders --> ODB[(Orders PostgreSQL)]
     Orders -- OrderSubmitted --> Rabbit[(RabbitMQ)]
@@ -207,14 +212,26 @@ Endpoints:
 | Payments health | http://localhost:8083/health |
 | Notifications health | http://localhost:8084/health |
 | RabbitMQ Management | http://localhost:15672 |
+| Keycloak | http://localhost:8180 |
 
-Crie um pedido:
+Obtenha um token do usuário local de demonstração:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8180/realms/distributed-commerce/protocol/openid-connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password" \
+  -d "client_id=commerce-cli" \
+  -d "username=demo-customer" \
+  -d "password=local-demo-only" | jq -r .access_token)
+```
+
+Crie um pedido autenticado. O CustomerId é derivado da claim sub do token e não é aceito do payload:
 
 ```bash
 curl -X POST http://localhost:8081/orders \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "customerId": "customer-001",
     "items": [
       { "sku": "NOTEBOOK-01", "quantity": 1, "unitPrice": 3499.90 }
     ]
@@ -224,7 +241,8 @@ curl -X POST http://localhost:8081/orders \
 Consulte o status assíncrono:
 
 ```bash
-curl http://localhost:8081/orders/{order-id}
+curl http://localhost:8081/orders/{order-id} \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ### Caminhos de falha para demonstração
@@ -235,6 +253,28 @@ O exemplo possui políticas determinísticas para permitir testar o fluxo distri
 - total do pedido acima de **5.000** gera `PaymentFailed`.
 
 Essas regras são intencionalmente simples; o foco está na arquitetura ao redor delas.
+
+---
+
+## Segurança e identidade
+
+A Orders API valida access tokens emitidos pelo Keycloak. Assinatura, emissor, audiência e expiração são verificados, e roles do realm alimentam policies de autorização.
+
+O CustomerId do pedido é derivado da claim sub; ele não é mais confiado ao payload. Usuários com role customer acessam apenas os próprios pedidos, enquanto admin pode consultar pedidos entre clientes.
+
+O realm local versionado existe para demonstração e smoke tests. O fluxo de senha direta é apenas um fixture local; clientes interativos reais devem usar Authorization Code + PKCE.
+
+Veja [ADR-0004](docs/adr/0004-identity-keycloak.md).
+
+---
+
+## AI Engineering Harness
+
+O repositório também demonstra automação do ciclo de desenvolvimento. O workflow [AI Evolution Harness](.github/workflows/ai-evolution.yml) executa um agente Codex sob regras versionadas em [AGENTS.md](AGENTS.md) e [.ai/engineering-constitution.md](.ai/engineering-constitution.md).
+
+O agente pode implementar uma tarefa pequena, mas só entrega depois de restore, build, testes e validação do Compose. A saída é sempre uma branch e um pull request para revisão humana; não existe auto-merge.
+
+Veja [ADR-0005](docs/adr/0005-ai-engineering-harness.md).
 
 ---
 
@@ -262,7 +302,8 @@ O GitHub Actions valida toda mudança relevante com:
 5. build do container de Orders;
 6. build do container de Inventory;
 7. build do container de Payments;
-8. build do container de Notifications.
+8. build do container de Notifications;
+9. smoke test real de autenticação, ownership e acesso administrativo.
 
 O Dependabot monitora dependências NuGet e GitHub Actions.
 
@@ -289,6 +330,8 @@ RabbitMQ e PostgreSQL são tratados como dependências de plataforma que, em pro
 - [ADR-0001 — Serviços orientados a eventos e Clean Architecture](docs/adr/0001-event-driven-clean-architecture.md)
 - [ADR-0002 — Transactional outbox em vez de transações distribuídas](docs/adr/0002-transactional-outbox.md)
 - [ADR-0003 — Idempotência e consistência eventual](docs/adr/0003-idempotency-eventual-consistency.md)
+- [ADR-0004 — Identidade e autorização com Keycloak](docs/adr/0004-identity-keycloak.md)
+- [ADR-0005 — Harness de engenharia assistida por IA](docs/adr/0005-ai-engineering-harness.md)
 
 ---
 
@@ -298,7 +341,8 @@ RabbitMQ e PostgreSQL são tratados como dependências de plataforma que, em pro
 src/
 ├── BuildingBlocks/
 │   ├── Contracts/
-│   └── Observability/
+│   ├── Observability/
+│   └── Security/
 └── Services/
     ├── Orders/
     │   ├── Orders.Domain/

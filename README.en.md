@@ -4,7 +4,7 @@
 
 # Distributed Commerce Platform
 
-### .NET 10 · Clean Architecture · RabbitMQ · Event-Driven Architecture
+### .NET 10 · Clean Architecture · RabbitMQ · Keycloak · Event-Driven Architecture · AI Engineering Harness
 
 [![CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)
 ![Services](https://img.shields.io/badge/Services-4-2563EB)
@@ -13,6 +13,8 @@
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-OTLP--ready-7C3AED)
 ![Docker](https://img.shields.io/badge/Docker-4%20Images-2496ED?logo=docker&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-Examples-326CE5?logo=kubernetes&logoColor=white)
+![Keycloak](https://img.shields.io/badge/Identity-Keycloak-4D4D4D?logo=keycloak&logoColor=white)
+![AI Harness](https://img.shields.io/badge/AI%20Harness-Codex%20%2B%20GitHub%20Actions-111827)
 
 **[Architecture](docs/architecture.en.md) · [5-minute Recruiter Walkthrough](docs/recruiter-guide.en.md) · [ADRs](docs/adr) · [Kubernetes](deploy/k8s/README.en.md) · [CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)**
 
@@ -52,6 +54,8 @@ The goal is to make advanced backend engineering visible in a public portfolio:
 - Kubernetes-ready health endpoints;
 - CI/CD quality gates;
 - automated tests and coverage;
+- OpenID Connect authentication, JWT validation, RBAC and resource-level authorization with Keycloak;
+- AI-assisted engineering harness with build/test gates and pull-request-only delivery;
 - architecture decision records.
 
 ---
@@ -60,7 +64,8 @@ The goal is to make advanced backend engineering visible in a public portfolio:
 
 ```mermaid
 flowchart LR
-    Client[Client] --> Orders[Orders API]
+    Client[Client] --> Keycloak[Keycloak / OIDC]
+    Keycloak --> Orders[Orders API]
 
     Orders --> ODB[(Orders PostgreSQL)]
     Orders -- OrderSubmitted --> Rabbit[(RabbitMQ)]
@@ -207,14 +212,26 @@ Endpoints:
 | Payments health | http://localhost:8083/health |
 | Notifications health | http://localhost:8084/health |
 | RabbitMQ Management | http://localhost:15672 |
+| Keycloak | http://localhost:8180 |
 
-Create an order:
+Get a token for the local demo user:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8180/realms/distributed-commerce/protocol/openid-connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password" \
+  -d "client_id=commerce-cli" \
+  -d "username=demo-customer" \
+  -d "password=local-demo-only" | jq -r .access_token)
+```
+
+Create an authenticated order. CustomerId is derived from the token sub claim and is not accepted from the payload:
 
 ```bash
 curl -X POST http://localhost:8081/orders \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "customerId": "customer-001",
     "items": [
       { "sku": "NOTEBOOK-01", "quantity": 1, "unitPrice": 3499.90 }
     ]
@@ -224,7 +241,8 @@ curl -X POST http://localhost:8081/orders \
 Query its asynchronous status:
 
 ```bash
-curl http://localhost:8081/orders/{order-id}
+curl http://localhost:8081/orders/{order-id} \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ### Demo failure paths
@@ -235,6 +253,28 @@ The sample contains deterministic policies so the distributed flow can be tested
 - an order total above **5,000** produces `PaymentFailed`.
 
 These rules are intentionally simple; the architecture around them is the focus.
+
+---
+
+## Security and identity
+
+The Orders API validates access tokens issued by Keycloak. Signature, issuer, audience and lifetime are validated, and realm roles feed authorization policies.
+
+Order CustomerId is derived from the token sub claim instead of trusting the request payload. Users with the customer role can only read their own orders, while admin can read across customers.
+
+The versioned local realm exists for demos and smoke tests. Direct password grant is only a local fixture; real interactive clients should use Authorization Code + PKCE.
+
+See [ADR-0004](docs/adr/0004-identity-keycloak.en.md).
+
+---
+
+## AI Engineering Harness
+
+The repository also demonstrates development-cycle automation. The [AI Evolution Harness](.github/workflows/ai-evolution.yml) runs a Codex agent under versioned rules in [AGENTS.md](AGENTS.md) and [.ai/engineering-constitution.md](.ai/engineering-constitution.md).
+
+The agent can implement a small task, but delivery only happens after restore, build, tests and Compose validation. Output is always a branch and pull request for human review; there is no auto-merge.
+
+See [ADR-0005](docs/adr/0005-ai-engineering-harness.en.md).
 
 ---
 
@@ -262,7 +302,8 @@ GitHub Actions validates every relevant change with:
 5. Orders container build;
 6. Inventory container build;
 7. Payments container build;
-8. Notifications container build.
+8. Notifications container build;
+9. real authentication, ownership and administrator-access smoke testing.
 
 Dependabot monitors NuGet and GitHub Actions dependencies.
 
@@ -289,6 +330,8 @@ RabbitMQ and PostgreSQL are treated as platform dependencies that would normally
 - [ADR-0001 — Event-driven services and Clean Architecture](docs/adr/0001-event-driven-clean-architecture.md)
 - [ADR-0002 — Transactional outbox instead of distributed transactions](docs/adr/0002-transactional-outbox.md)
 - [ADR-0003 — Idempotency and eventual consistency](docs/adr/0003-idempotency-eventual-consistency.md)
+- [ADR-0004 — Identity and authorization with Keycloak](docs/adr/0004-identity-keycloak.en.md)
+- [ADR-0005 — AI-assisted engineering harness](docs/adr/0005-ai-engineering-harness.en.md)
 
 ---
 
@@ -298,7 +341,8 @@ RabbitMQ and PostgreSQL are treated as platform dependencies that would normally
 src/
 ├── BuildingBlocks/
 │   ├── Contracts/
-│   └── Observability/
+│   ├── Observability/
+│   └── Security/
 └── Services/
     ├── Orders/
     │   ├── Orders.Domain/
