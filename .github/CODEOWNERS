@@ -1,0 +1,8 @@
+# Default ownership for architecture, security and delivery changes.
+* @WillianZanutoOliveira
+
+/.github/ @WillianZanutoOliveira
+/.ai/ @WillianZanutoOliveira
+/deploy/ @WillianZanutoOliveira
+/src/BuildingBlocks/ @WillianZanutoOliveira
+/src/Platform/ @WillianZanutoOliveira
