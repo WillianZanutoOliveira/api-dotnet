@@ -4,7 +4,7 @@
 
 # Distributed Commerce Platform
 
-### .NET 10 · Clean Architecture · RabbitMQ · Keycloak · Event-Driven Architecture · AI Engineering Harness
+### .NET 10 · Clean Architecture · YARP · RabbitMQ · Keycloak · Vault · OpenTelemetry · AI Engineering Harness
 
 [![CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)
 ![Services](https://img.shields.io/badge/Services-4-2563EB)
@@ -14,6 +14,8 @@
 ![Docker](https://img.shields.io/badge/Docker-4%20Images-2496ED?logo=docker&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-Examples-326CE5?logo=kubernetes&logoColor=white)
 ![Keycloak](https://img.shields.io/badge/Identity-Keycloak-4D4D4D?logo=keycloak&logoColor=white)
+![Vault](https://img.shields.io/badge/Secrets-Vault-FFEC6E?logo=vault&logoColor=black)
+![Sonar](https://img.shields.io/badge/Clean%20Code-Sonar-126ED3?logo=sonarqubecloud&logoColor=white)
 ![AI Harness](https://img.shields.io/badge/AI%20Harness-Codex%20%2B%20GitHub%20Actions-111827)
 
 **[Architecture](docs/architecture.en.md) · [5-minute Recruiter Walkthrough](docs/recruiter-guide.en.md) · [ADRs](docs/adr) · [Kubernetes](deploy/k8s/README.en.md) · [CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)**
@@ -49,11 +51,15 @@ The goal is to make advanced backend engineering visible in a public portfolio:
 - retries and failure isolation;
 - database-per-service;
 - PostgreSQL;
-- OpenTelemetry traces and metrics;
+- YARP API Gateway with edge authentication;
+- centralized secrets management with HashiCorp Vault and per-workload policies;
+- OpenTelemetry traces/metrics with Tempo, Prometheus and Grafana;
 - Docker and Docker Compose;
 - Kubernetes-ready health endpoints;
 - CI/CD quality gates;
-- automated tests and coverage;
+- automated tests, coverage and real PostgreSQL integration through Testcontainers;
+- Clean Code enforcement with SonarAnalyzer, .editorconfig and dotnet format;
+- DevSecOps gates with CodeQL, Trivy and SBOM generation;
 - OpenID Connect authentication, JWT validation, RBAC and resource-level authorization with Keycloak;
 - AI-assisted engineering harness with build/test gates and pull-request-only delivery;
 - architecture decision records.
@@ -65,7 +71,8 @@ The goal is to make advanced backend engineering visible in a public portfolio:
 ```mermaid
 flowchart LR
     Client[Client] --> Keycloak[Keycloak / OIDC]
-    Keycloak --> Orders[Orders API]
+    Keycloak --> Gateway[YARP API Gateway]
+    Gateway --> Orders[Orders API]
 
     Orders --> ODB[(Orders PostgreSQL)]
     Orders -- OrderSubmitted --> Rabbit[(RabbitMQ)]
@@ -80,6 +87,11 @@ flowchart LR
 
     Rabbit --> Orders
     Rabbit --> Notifications[Notifications Service]
+
+    Vault[HashiCorp Vault] -. secrets .-> Orders
+    Vault -. secrets .-> Inventory
+    Vault -. secrets .-> Payments
+    Vault -. secrets .-> Notifications
 
     Orders -. traces/metrics .-> OTel[OpenTelemetry]
     Inventory -. traces/metrics .-> OTel
@@ -196,16 +208,19 @@ Create the local secret file:
 cp .env.example .env
 ```
 
-Change the example passwords and run:
+Change the local placeholders and run the Vault-secured profile:
 
 ```bash
-docker compose up --build
+docker compose -f docker-compose.yml -f docker-compose.vault.yml up --build
 ```
+
+The simple `docker-compose.yml` remains useful for learning; `docker-compose.vault.yml` is the secure portfolio profile.
 
 Endpoints:
 
 | Component | URL |
 | --- | --- |
+| API Gateway | http://localhost:8080 |
 | Orders API | http://localhost:8081 |
 | Orders health | http://localhost:8081/health |
 | Inventory health | http://localhost:8082/health |
@@ -213,6 +228,10 @@ Endpoints:
 | Notifications health | http://localhost:8084/health |
 | RabbitMQ Management | http://localhost:15672 |
 | Keycloak | http://localhost:8180 |
+| Vault | http://localhost:8200 |
+| Grafana | http://localhost:3000 |
+| Prometheus | http://localhost:9090 |
+| Tempo | http://localhost:3200 |
 
 Get a token for the local demo user:
 
@@ -228,7 +247,7 @@ TOKEN=$(curl -s -X POST http://localhost:8180/realms/distributed-commerce/protoc
 Create an authenticated order. CustomerId is derived from the token sub claim and is not accepted from the payload:
 
 ```bash
-curl -X POST http://localhost:8081/orders \
+curl -X POST http://localhost:8080/api/orders \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -241,7 +260,7 @@ curl -X POST http://localhost:8081/orders \
 Query its asynchronous status:
 
 ```bash
-curl http://localhost:8081/orders/{order-id} \
+curl http://localhost:8080/api/orders/{order-id} \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -266,6 +285,12 @@ The versioned local realm exists for demos and smoke tests. Direct password gran
 
 See [ADR-0004](docs/adr/0004-identity-keycloak.en.md).
 
+### Secrets vault
+
+The secure profile uses HashiCorp Vault KV v2. Each service receives its own file-mounted token and a policy that can read only its corresponding path. Effective PostgreSQL and RabbitMQ credentials are loaded by `DistributedCommerce.Secrets` before dependency composition.
+
+Production does not use dev mode/root tokens: prefer platform identity (for example Kubernetes Auth), short-lived tokens, TLS, auditing and rotation. See [secrets management](docs/secrets-management.en.md) and [ADR-0006](docs/adr/0006-secrets-hashicorp-vault.en.md).
+
 ---
 
 ## AI Engineering Harness
@@ -280,7 +305,7 @@ See [ADR-0005](docs/adr/0005-ai-engineering-harness.en.md).
 
 ## Observability
 
-All services use a shared OpenTelemetry building block with:
+All services use a shared OpenTelemetry building block. The local profile includes OpenTelemetry Collector, Tempo, Prometheus and Grafana, making end-to-end telemetry inspectable through:
 
 - `ActivitySource` for distributed trace spans;
 - custom message-processing metrics;
@@ -332,6 +357,7 @@ RabbitMQ and PostgreSQL are treated as platform dependencies that would normally
 - [ADR-0003 — Idempotency and eventual consistency](docs/adr/0003-idempotency-eventual-consistency.md)
 - [ADR-0004 — Identity and authorization with Keycloak](docs/adr/0004-identity-keycloak.en.md)
 - [ADR-0005 — AI-assisted engineering harness](docs/adr/0005-ai-engineering-harness.en.md)
+- [ADR-0006 — Centralized secrets management with HashiCorp Vault](docs/adr/0006-secrets-hashicorp-vault.en.md)
 
 ---
 
@@ -342,7 +368,10 @@ src/
 ├── BuildingBlocks/
 │   ├── Contracts/
 │   ├── Observability/
-│   └── Security/
+│   ├── Security/
+│   └── Secrets/
+├── Gateway/
+│   └── ApiGateway/
 └── Services/
     ├── Orders/
     │   ├── Orders.Domain/
