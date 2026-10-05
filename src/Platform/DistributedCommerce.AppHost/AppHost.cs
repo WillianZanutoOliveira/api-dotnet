@@ -218,7 +218,14 @@ static IResourceBuilder<ParameterResource> CreateGeneratedSecret(
 {
     return builder.AddParameter(
         name,
-        new GenerateParameterDefault { MinLength = 32 },
+        new GenerateParameterDefault
+        {
+            MinLength = 32,
+            MinLower = 4,
+            MinUpper = 4,
+            MinNumeric = 4,
+            Special = false
+        },
         secret: true,
         persist: true);
 }
