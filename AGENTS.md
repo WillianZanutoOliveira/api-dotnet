@@ -29,6 +29,8 @@ Before changing code, read:
 - Never commit `.aspire` runtime state or generated Vault token files.
 - Application credentials belong in Vault (or the target platform secret manager), not in appsettings or application-container environment variables.
 - PostgreSQL workload credentials must remain dynamic through the Vault Database Secrets Engine; do not replace them with long-lived application passwords.
+- Runtime PostgreSQL roles must remain DML-only; schema DDL belongs to the separate Vault-backed DatabaseMigrator identity.
+- Business services must never reintroduce `EnsureCreatedAsync`, `MigrateAsync`, or schema-creation logic during normal application startup.
 - Preserve lease renewal and fail-closed behavior for dynamic database identities.
 - Never trust a customer/user identifier supplied by the request body when it can be derived from authenticated identity.
 - Do not disable issuer, audience, lifetime or signature validation to make tests pass.
@@ -41,6 +43,13 @@ Before changing code, read:
 - Do not simplify Aspire by bypassing Keycloak, Vault or dynamic PostgreSQL credentials.
 - Keep Docker Compose as the CI-tested parity path.
 - The AppHost is part of `DistributedCommerce.slnx` and must remain buildable under the same quality gates.
+
+## Delivery invariants
+
+- GitOps promotion must remain reviewable: release/promotion automation may open PRs but must not auto-merge production image changes.
+- Production deployment state belongs in Git and is reconciled by Argo CD; CI must not add imperative production `kubectl apply` deployment steps.
+- Database migration must complete before workload rollout, and canary changes must preserve backward-compatible expand/contract migration discipline.
+- Preserve Argo Rollouts analysis gates for progressive delivery.
 
 ## Supply-chain invariants
 
@@ -71,6 +80,7 @@ AI automation must not modify these files unless a human explicitly performs a s
 - .github/workflows/scorecard.yml
 - .github/workflows/release.yml
 - .github/workflows/performance.yml
+- .github/workflows/gitops-promote.yml
 - .github/CODEOWNERS
 - SECURITY.md
 
