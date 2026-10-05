@@ -18,11 +18,13 @@ Before changing code, read:
 - Prefer asynchronous integration events across service boundaries.
 - Do not introduce distributed transactions.
 - Keep observability vendor-neutral through OpenTelemetry.
+- Preserve local topology parity between the Aspire AppHost and secure Docker Compose when infrastructure or security boundaries change.
 - New architecture decisions require an ADR.
 
 ## Security invariants
 
 - Never commit credentials, tokens, private keys or real customer data.
+- Never commit `.aspire` runtime state or generated Vault token files.
 - Application credentials belong in Vault (or the target platform secret manager), not in appsettings or application-container environment variables.
 - PostgreSQL workload credentials must remain dynamic through the Vault Database Secrets Engine; do not replace them with long-lived application passwords.
 - Preserve lease renewal and fail-closed behavior for dynamic database identities.
@@ -30,6 +32,13 @@ Before changing code, read:
 - Do not disable issuer, audience, lifetime or signature validation to make tests pass.
 - Do not weaken authorization policies.
 - Local demo credentials must be unmistakably non-production.
+
+## Developer experience
+
+- The Aspire AppHost is the preferred local developer entry point.
+- Do not simplify Aspire by bypassing Keycloak, Vault or dynamic PostgreSQL credentials.
+- Keep Docker Compose as the CI-tested parity path.
+- The AppHost is part of `DistributedCommerce.slnx` and must remain buildable under the same quality gates.
 
 ## Change discipline
 
