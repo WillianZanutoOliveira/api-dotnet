@@ -1,4 +1,4 @@
-using DistributedCommerce.Observability;
+using DistributedCommerce.ServiceDefaults;
 using DistributedCommerce.Secrets;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -23,8 +23,7 @@ public static partial class Program
         builder.Services.AddDbContext<InventoryDbContext>(options =>
             options.UseNpgsql(connectionString));
 
-        builder.Services.AddPlatformObservability(builder.Configuration, "inventory-service");
-        builder.Services.AddHealthChecks();
+        builder.AddPlatformServiceDefaults("inventory-service");
 
         builder.Services.AddMassTransit(x =>
         {
@@ -62,7 +61,7 @@ public static partial class Program
             await db.Database.EnsureCreatedAsync();
         }
 
-        app.MapHealthChecks("/health");
+        app.MapPlatformDefaultEndpoints();
         await app.RunAsync();
     }
 }
