@@ -189,11 +189,19 @@ A configuração local usa um realm importável e versionado para tornar o compo
 
 ## Gestão de segredos
 
-O perfil seguro usa HashiCorp Vault KV v2. Cada workload recebe um token independente por arquivo montado e uma policy que permite leitura apenas do próprio path. O building block `DistributedCommerce.Secrets` carrega os valores antes de configurar banco e mensageria.
+O perfil seguro usa HashiCorp Vault com dois mecanismos. KV v2 armazena os segredos estáticos restantes do demo, enquanto o Database Secrets Engine emite credenciais PostgreSQL dinâmicas para Orders, Inventory e Payments.
+
+Cada workload recebe um token independente por arquivo montado. Para banco, o token só pode ler `database/creds/<service>-app` e renovar leases sob o mesmo prefixo. A resposta do Vault fornece `username`, `password`, `lease_id`, TTL e `renewable`; o connection string é construído somente em memória.
+
+### Roles estáveis e logins efêmeros
+
+Cada banco possui uma role `NOLOGIN` estável (`orders_runtime`, `inventory_runtime`, `payments_runtime`). O Vault cria um login efêmero e concede membership somente nessa role. A sessão PostgreSQL faz `SET ROLE` via connection options, separando a identidade temporária da autorização persistente.
+
+O lease é renovado em background. Se a renovação falhar, o host encerra o processo para que o orquestrador force uma nova autenticação e uma nova credencial.
 
 No ambiente local, o root token existe apenas para bootstrap do Vault em modo dev. Em produção, a preferência é autenticação de plataforma, como Kubernetes Auth, com tokens curtos, TLS, auditoria e rotação. AppRole é tratado como fallback quando identidade nativa da plataforma não está disponível.
 
-A comunicação entre serviços continua assíncrona por RabbitMQ; não foram introduzidas chamadas HTTP service-to-service apenas para demonstrar OAuth. Isso preserva os limites arquiteturais já existentes.
+A comunicação entre serviços continua assíncrona por RabbitMQ; não foram introduzidas chamadas HTTP service-to-service apenas para demonstrar OAuth. O lifecycle das credenciais PostgreSQL está detalhado no [ADR-0007](adr/0007-dynamic-postgresql-credentials.md). Isso preserva os limites arquiteturais já existentes.
 
 ## Observabilidade
 
