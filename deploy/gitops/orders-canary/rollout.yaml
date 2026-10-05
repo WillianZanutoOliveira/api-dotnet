@@ -10,11 +10,14 @@ spec:
       app: orders-api
   strategy:
     canary:
-      stableService: orders-api-stable
-      canaryService: orders-api-canary
       maxSurge: 1
       maxUnavailable: 0
-      scaleDownDelaySeconds: 30
+      canaryMetadata:
+        labels:
+          rollout-role: canary
+      stableMetadata:
+        labels:
+          rollout-role: stable
       steps:
         - setWeight: 20
         - pause:
