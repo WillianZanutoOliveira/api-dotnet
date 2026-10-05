@@ -313,6 +313,40 @@ Em produção, o modo dev/root token não é usado: a preferência é identidade
 
 ---
 
+## Database migrations e least privilege
+
+O schema não é mais criado pelo runtime. Orders, Inventory e Payments possuem **EF Core Migrations versionadas** e um `DatabaseMigrator` one-shot.
+
+A separação é explícita:
+
+```text
+Vault <service>-migration
+        |
+        v
+temporary PostgreSQL login
+        |
+        v
+<service>_migrator
+        |
+        +--> DDL / EF Migrations
+
+Vault <service>-app
+        |
+        v
+temporary PostgreSQL login
+        |
+        v
+<service>_runtime
+        |
+        +--> DML only
+```
+
+Compose e Aspire aguardam o migrator terminar antes de iniciar o workload. No modelo Kubernetes/GitOps, a mesma operação acontece como Argo CD `PreSync` Job. O CI falha se `EnsureCreatedAsync` reaparecer ou se a role runtime recuperar `CREATE` no schema.
+
+Veja [ADR-0011](docs/adr/0011-ef-migrations-vault-deployment-identity.md).
+
+---
+
 ## Service Defaults e proteção de borda
 
 Todos os workloads usam um building block compartilhado alinhado ao padrão do Aspire:
@@ -336,7 +370,7 @@ Além de CodeQL/Trivy/SBOM, o repositório automatiza:
 - OpenSSF Scorecard semanal com resultados em SARIF/Code Scanning;
 - GitHub Actions referenciadas por SHA imutável;
 - `CODEOWNERS` e `SECURITY.md`;
-- publicação automática de cinco imagens OCI no GHCR quando uma tag `v*` é criada;
+- publicação automática de seis imagens OCI no GHCR quando uma tag `v*` é criada;
 - attestation criptográfica de cada digest OCI com GitHub OIDC + Sigstore.
 
 Exemplo de release:
@@ -399,6 +433,37 @@ O Dependabot monitora dependências NuGet e GitHub Actions.
 
 ---
 
+## Architecture, contract e chaos tests
+
+A solução possui quality gates executáveis para propriedades que testes unitários não cobrem sozinhos:
+
+- **Architecture Tests** impedem referências proibidas entre Domain, Application, Infrastructure, Contracts e bounded contexts;
+- **Contract Compatibility Tests** protegem o shape dos integration events publicados;
+- **Chaos Tests** usam Testcontainers + Toxiproxy para cortar e restaurar conectividade PostgreSQL e comprovar falha/recovery.
+
+Veja [ADR-0012](docs/adr/0012-architecture-contract-chaos-gitops.md).
+
+---
+
+## GitOps e canary deployment
+
+`deploy/gitops` demonstra uma estratégia declarativa com **Argo CD + Argo Rollouts + Vault Kubernetes Auth**:
+
+```text
+tag v*
+  -> imagens/attestations no GHCR
+  -> GitOps Promotion abre PR
+  -> review + merge
+  -> Argo CD PreSync migration
+  -> canary 20% -> analysis -> 50% -> analysis -> 100%
+```
+
+CI não executa `kubectl apply` em produção. Git é a fonte de verdade e o promotion workflow nunca faz auto-merge.
+
+Veja [guia GitOps](deploy/gitops/README.md) e [ADR-0012](docs/adr/0012-architecture-contract-chaos-gitops.md).
+
+---
+
 ## Performance baseline
 
 O workflow [Performance Baseline](.github/workflows/performance.yml) executa k6 semanalmente ou sob demanda contra a Orders API usando a stack segura com Keycloak, Vault, PostgreSQL e RabbitMQ.
@@ -437,6 +502,8 @@ RabbitMQ e PostgreSQL são tratados como dependências de plataforma que, em pro
 - [ADR-0008 — .NET Aspire como orquestrador de desenvolvimento local](docs/adr/0008-dotnet-aspire-local-orchestration.md)
 - [ADR-0009 — Service Defaults, health model, OpenAPI e proteção de borda](docs/adr/0009-service-defaults-api-resilience.md)
 - [ADR-0010 — Software supply chain e releases atestados](docs/adr/0010-software-supply-chain.md)
+- [ADR-0011 — EF Core Migrations com identidade Vault de deployment separada](docs/adr/0011-ef-migrations-vault-deployment-identity.md)
+- [ADR-0012 — Guardrails arquiteturais, contratos, fault injection e progressive delivery](docs/adr/0012-architecture-contract-chaos-gitops.md)
 
 ---
 
@@ -452,7 +519,8 @@ src/
 ├── Gateway/
 │   └── ApiGateway/
 ├── Platform/
-│   └── DistributedCommerce.AppHost/
+│   ├── DistributedCommerce.AppHost/
+│   └── DatabaseMigrator/
 └── Services/
     ├── Orders/
     │   ├── Orders.Domain/
@@ -464,7 +532,12 @@ src/
     └── Notifications/
 
 tests/
-└── Orders.Domain.Tests/
+├── Architecture.Tests/
+├── Chaos.Tests/
+├── Contracts.Compatibility.Tests/
+├── DistributedCommerce.AppHost.Tests/
+├── Orders.Domain.Tests/
+└── Orders.Persistence.IntegrationTests/
 
 docs/
 ├── architecture.md
