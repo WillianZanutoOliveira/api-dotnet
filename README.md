@@ -61,6 +61,7 @@ O objetivo é tornar visível, em um portfólio público, engenharia backend de 
 - Service Defaults compartilhados com readiness/liveness, service discovery e resiliência HTTP;
 - health endpoints preparados para Kubernetes;
 - quality gates em CI/CD;
+- baseline semanal de performance com k6 e thresholds de SLO técnico;
 - testes automatizados, cobertura e integração com PostgreSQL real via Testcontainers;
 - Clean Code com SonarAnalyzer, .editorconfig e dotnet format;
 - DevSecOps com CodeQL, Trivy, SBOM e OpenSSF Scorecard;
@@ -395,6 +396,16 @@ O GitHub Actions valida toda mudança relevante com:
 15. workflow de segurança com CodeQL, Trivy e SBOM.
 
 O Dependabot monitora dependências NuGet e GitHub Actions.
+
+---
+
+## Performance baseline
+
+O workflow [Performance Baseline](.github/workflows/performance.yml) executa k6 semanalmente ou sob demanda contra a Orders API usando a stack segura com Keycloak, Vault, PostgreSQL e RabbitMQ.
+
+A baseline falha quando o erro HTTP chega a 1%, quando menos de 99% das criações retornam HTTP 201 ou quando o p95 supera 1 segundo. O objetivo é detectar regressões sem tornar cada PR mais lento.
+
+Veja [documentação de performance](docs/performance.md).
 
 ---
 
