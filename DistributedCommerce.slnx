@@ -19,4 +19,5 @@
   <Project Path="tests/DistributedCommerce.AppHost.Tests/DistributedCommerce.AppHost.Tests.csproj" />
   <Project Path="tests/Architecture.Tests/Architecture.Tests.csproj" />
   <Project Path="tests/Contracts.Compatibility.Tests/Contracts.Compatibility.Tests.csproj" />
+  <Project Path="tests/Chaos.Tests/Chaos.Tests.csproj" />
 </Solution>
