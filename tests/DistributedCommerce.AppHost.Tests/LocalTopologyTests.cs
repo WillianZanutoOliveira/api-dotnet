@@ -40,9 +40,20 @@ public sealed class LocalTopologyTests
             .WaitForResourceHealthyAsync("api-gateway", cancellation.Token)
             .WaitAsync(DefaultTimeout, cancellation.Token);
 
-        using var client = app.CreateHttpClient("api-gateway", "http");
-        using var response = await client.GetAsync("/health", cancellation.Token);
+        using var gatewayClient = app.CreateHttpClient("api-gateway", "http");
+        using var healthResponse = await gatewayClient.GetAsync("/health", cancellation.Token);
+        using var aliveResponse = await gatewayClient.GetAsync("/alive", cancellation.Token);
 
-        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        using var ordersClient = app.CreateHttpClient("orders-api", "http");
+        using var openApiResponse = await ordersClient.GetAsync("/openapi/v1.json", cancellation.Token);
+        var openApiDocument = await openApiResponse.Content.ReadAsStringAsync(cancellation.Token);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(healthResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(aliveResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(openApiResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+            Assert.That(openApiDocument, Does.Contain("\"openapi\""));
+        });
     }
 }
