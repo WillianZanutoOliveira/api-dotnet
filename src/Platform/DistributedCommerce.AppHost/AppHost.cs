@@ -1,3 +1,5 @@
+using Aspire.Hosting.ApplicationModel;
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 var repositoryRoot = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "../../.."));
@@ -128,7 +130,7 @@ var ordersApi = builder
     .WaitFor(rabbitMq)
     .WaitFor(keycloak);
 
-var inventoryService = builder
+builder
     .AddProject(
         "inventory-service",
         Path.Combine(repositoryRoot, "src", "Services", "Inventory", "Inventory.Service", "Inventory.Service.csproj"))
@@ -151,7 +153,7 @@ var inventoryService = builder
     .WaitForCompletion(vaultInit)
     .WaitFor(rabbitMq);
 
-var paymentsService = builder
+builder
     .AddProject(
         "payments-service",
         Path.Combine(repositoryRoot, "src", "Services", "Payments", "Payments.Service", "Payments.Service.csproj"))
@@ -174,7 +176,7 @@ var paymentsService = builder
     .WaitForCompletion(vaultInit)
     .WaitFor(rabbitMq);
 
-var notificationsService = builder
+builder
     .AddProject(
         "notifications-service",
         Path.Combine(repositoryRoot, "src", "Services", "Notifications", "Notifications.Service", "Notifications.Service.csproj"))
