@@ -97,13 +97,14 @@ Useful evidence:
 - [Shared telemetry building block](../src/BuildingBlocks/Observability/PlatformTelemetry.cs)
 - [Architecture notes on observability](./architecture.en.md#observability)
 
-The code exposes custom spans and metrics and can export through OTLP.
+The code exposes custom spans and metrics over OTLP. The local environment includes OpenTelemetry Collector, Tempo, Prometheus and Grafana.
 
 ## 6. Testing and delivery
 
 Useful evidence:
 
 - [Order domain tests](../tests/Orders.Domain.Tests/OrderTests.cs)
+- [Real PostgreSQL integration through Testcontainers](../tests/Orders.Persistence.IntegrationTests/OrderRepositoryTests.cs)
 - [GitHub Actions CI](../.github/workflows/ci.yml)
 - [Docker Compose](../docker-compose.yml)
 - [Kubernetes examples](../deploy/k8s/README.en.md)
@@ -114,7 +115,10 @@ The CI pipeline validates:
 - Release build;
 - automated tests;
 - code coverage;
-- four Docker image builds.
+- Sonar/.editorconfig/dotnet format quality gate;
+- unit and Testcontainers tests;
+- Gateway + four service image builds;
+- Keycloak → YARP → Orders smoke test using the Vault profile.
 
 ## 7. Security and identity
 
@@ -127,6 +131,8 @@ Useful evidence:
 
 The project demonstrates JWT validation, audience/issuer checks, RBAC and object-level authorization. CustomerId is not trusted from the payload: it comes from the authenticated sub.
 
+Secrets use HashiCorp Vault KV v2 with a token and least-privilege read policy per service. Evidence: [secrets building block](../src/BuildingBlocks/Secrets/VaultConfigurationExtensions.cs), [Vault overlay](../docker-compose.vault.yml) and [ADR-0006](./adr/0006-secrets-hashicorp-vault.en.md).
+
 ## 8. AI engineering automation
 
 Useful evidence:
@@ -138,7 +144,18 @@ Useful evidence:
 
 The agent can implement changes in an isolated workspace, but it must pass quality gates and can only deliver through a branch + pull request. There is no auto-merge.
 
-## 9. Architecture decisions
+## 9. Clean Code and DevSecOps
+
+Useful evidence:
+
+- [Shared rules](../.editorconfig)
+- [SonarAnalyzer build integration](../Directory.Build.props)
+- [Security pipeline](../.github/workflows/security.yml)
+- [Code-quality guide](./code-quality.en.md)
+
+The build treats warnings as errors and CI verifies formatting/analyzers. A separate pipeline runs CodeQL, Trivy and generates an SPDX SBOM.
+
+## 10. Architecture decisions
 
 The ADRs document trade-offs instead of only implementation details:
 
@@ -147,6 +164,7 @@ The ADRs document trade-offs instead of only implementation details:
 - [ADR-0003 — Idempotency and eventual consistency](./adr/0003-idempotency-eventual-consistency.en.md)
 - [ADR-0004 — Identity and authorization with Keycloak](./adr/0004-identity-keycloak.en.md)
 - [ADR-0005 — AI-assisted engineering harness](./adr/0005-ai-engineering-harness.en.md)
+- [ADR-0006 — Centralized secrets management with HashiCorp Vault](./adr/0006-secrets-hashicorp-vault.en.md)
 
 ## What this repository is intended to demonstrate
 
