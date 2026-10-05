@@ -50,5 +50,6 @@ AI automation must not modify these files unless a human explicitly performs a s
 
 - dotnet restore DistributedCommerce.slnx
 - dotnet build DistributedCommerce.slnx --configuration Release --no-restore
+- dotnet format DistributedCommerce.slnx --verify-no-changes --no-restore --severity warn
 - dotnet test DistributedCommerce.slnx --configuration Release --no-build
 - docker compose config
