@@ -22,6 +22,8 @@ Na primeira execução, parâmetros secretos são gerados automaticamente pelo A
 
 Não é necessário instalar um workload Aspire legado. O projeto usa o SDK `Aspire.AppHost.Sdk/13.6.0`.
 
+O projeto mantém `AspireUseCliBundle=false` para preservar o fluxo direto com `dotnet run` sem exigir a instalação separada do Aspire CLI. Essa é uma escolha consciente de onboarding; deve ser revisitada quando o bundle do CLI se tornar requisito obrigatório em uma versão futura do Aspire.
+
 ## O que sobe
 
 O Dashboard deve mostrar:
@@ -56,6 +58,10 @@ Applications
 - RabbitMQ Management: `http://localhost:15672`
 
 O URL do Aspire Dashboard é aberto automaticamente pelo launch profile.
+
+## Segurança do Dashboard
+
+O Dashboard é uma ferramenta de desenvolvimento e pode exibir configuração, endpoints e telemetria sensível. Ele deve permanecer restrito à máquina/rede de desenvolvimento. O AppHost mantém o modo de autenticação padrão do Dashboard; não configure o frontend como `Unsecured` para expô-lo publicamente.
 
 ## Debug
 
