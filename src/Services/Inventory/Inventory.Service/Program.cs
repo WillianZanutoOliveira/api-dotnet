@@ -10,7 +10,7 @@ public static partial class Program
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
-await builder.Configuration.AddVaultSecretsAsync();
+        await builder.Configuration.AddVaultSecretsAsync();
 
         var connectionString = builder.Configuration.GetConnectionString("inventory-db")
             ?? "Host=localhost;Port=5433;Database=inventory;Username=postgres;Password=postgres";
