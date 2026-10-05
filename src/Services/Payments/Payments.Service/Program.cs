@@ -11,6 +11,7 @@ public static partial class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         await builder.Configuration.AddVaultSecretsAsync();
+        builder.Services.AddVaultLeaseRenewal();
 
         var connectionString = builder.Configuration.GetConnectionString("payments-db")
             ?? "Host=localhost;Port=5434;Database=payments;Username=postgres;Password=postgres";
