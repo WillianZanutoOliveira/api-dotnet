@@ -145,7 +145,28 @@ Evidências:
 - [ADR-0006 — cofre de segredos](./adr/0006-secrets-hashicorp-vault.md)
 - [ADR-0007 — credenciais PostgreSQL dinâmicas](./adr/0007-dynamic-postgresql-credentials.md)
 
-## 8. Automação de engenharia com IA
+## 8. Experiência de desenvolvimento com .NET Aspire
+
+O repositório também demonstra preocupação com **developer experience** e onboarding técnico.
+
+Evidências:
+
+- [Aspire AppHost](../src/Platform/DistributedCommerce.AppHost/AppHost.cs)
+- [Projeto do AppHost](../src/Platform/DistributedCommerce.AppHost/DistributedCommerce.AppHost.csproj)
+- [Guia de desenvolvimento local](./local-development.md)
+- [ADR-0008 — Aspire local](./adr/0008-dotnet-aspire-local-orchestration.md)
+
+Um novo desenvolvedor pode subir a topologia local com:
+
+```bash
+dotnet run --project src/Platform/DistributedCommerce.AppHost
+```
+
+O AppHost mantém Keycloak, Vault, RabbitMQ e os três PostgreSQL em containers, enquanto Gateway e os quatro serviços .NET rodam como projetos locais. Isso preserva credenciais PostgreSQL dinâmicas e lease renewal sem sacrificar breakpoints, logs por recurso e telemetria central no Aspire Dashboard.
+
+Docker Compose continua sendo o caminho de paridade exercitado pelo CI.
+
+## 9. Automação de engenharia com IA
 
 Evidências úteis:
 
@@ -156,7 +177,7 @@ Evidências úteis:
 
 O agente pode implementar mudanças em workspace isolado, mas precisa passar quality gates e só pode entregar via branch + pull request. Não existe auto-merge.
 
-## 9. Clean Code e DevSecOps
+## 10. Clean Code e DevSecOps
 
 Evidências úteis:
 
@@ -167,7 +188,7 @@ Evidências úteis:
 
 O build trata warnings como erros e o CI verifica formatação/analyzers. O pipeline separado executa CodeQL, Trivy e gera SBOM SPDX.
 
-## 10. Decisões de arquitetura
+## 11. Decisões de arquitetura
 
 Os ADRs documentam trade-offs, e não apenas detalhes de implementação:
 
@@ -178,6 +199,7 @@ Os ADRs documentam trade-offs, e não apenas detalhes de implementação:
 - [ADR-0005 — Harness de engenharia assistida por IA](./adr/0005-ai-engineering-harness.md)
 - [ADR-0006 — Gestão centralizada de segredos com HashiCorp Vault](./adr/0006-secrets-hashicorp-vault.md)
 - [ADR-0007 — Credenciais PostgreSQL dinâmicas com Vault Database Secrets Engine](./adr/0007-dynamic-postgresql-credentials.md)
+- [ADR-0008 — .NET Aspire como orquestrador de desenvolvimento local](./adr/0008-dotnet-aspire-local-orchestration.md)
 
 ## O que este repositório pretende demonstrar
 
