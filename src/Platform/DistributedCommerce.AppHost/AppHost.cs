@@ -108,6 +108,7 @@ var ordersApi = builder
         "orders-api",
         Path.Combine(repositoryRoot, "src", "Services", "Orders", "Orders.Api", "Orders.Api.csproj"))
     .WithHttpEndpoint(port: 8081, targetPort: 8081, name: "http", env: "ASPNETCORE_HTTP_PORTS", isProxied: false)
+    .WithHttpHealthCheck("/health")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("RabbitMq__Host", "localhost")
     .WithEnvironment("RabbitMq__Username", "")
@@ -137,6 +138,7 @@ builder
         "inventory-service",
         Path.Combine(repositoryRoot, "src", "Services", "Inventory", "Inventory.Service", "Inventory.Service.csproj"))
     .WithHttpEndpoint(port: 8082, targetPort: 8082, name: "http", env: "ASPNETCORE_HTTP_PORTS", isProxied: false)
+    .WithHttpHealthCheck("/health")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("RabbitMq__Host", "localhost")
     .WithEnvironment("RabbitMq__Username", "")
@@ -160,6 +162,7 @@ builder
         "payments-service",
         Path.Combine(repositoryRoot, "src", "Services", "Payments", "Payments.Service", "Payments.Service.csproj"))
     .WithHttpEndpoint(port: 8083, targetPort: 8083, name: "http", env: "ASPNETCORE_HTTP_PORTS", isProxied: false)
+    .WithHttpHealthCheck("/health")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("RabbitMq__Host", "localhost")
     .WithEnvironment("RabbitMq__Username", "")
@@ -183,6 +186,7 @@ builder
         "notifications-service",
         Path.Combine(repositoryRoot, "src", "Services", "Notifications", "Notifications.Service", "Notifications.Service.csproj"))
     .WithHttpEndpoint(port: 8084, targetPort: 8084, name: "http", env: "ASPNETCORE_HTTP_PORTS", isProxied: false)
+    .WithHttpHealthCheck("/health")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("RabbitMq__Host", "localhost")
     .WithEnvironment("RabbitMq__Username", "")
@@ -199,6 +203,7 @@ builder
         "api-gateway",
         Path.Combine(repositoryRoot, "src", "Gateway", "ApiGateway", "ApiGateway.csproj"))
     .WithHttpEndpoint(port: 8080, targetPort: 8080, name: "http", env: "ASPNETCORE_HTTP_PORTS", isProxied: false)
+    .WithHttpHealthCheck("/health")
     .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
     .WithEnvironment("Keycloak__Authority", "http://localhost:8180/realms/distributed-commerce")
     .WithEnvironment("Keycloak__MetadataAddress", "http://localhost:8180/realms/distributed-commerce/.well-known/openid-configuration")
