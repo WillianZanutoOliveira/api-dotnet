@@ -18,12 +18,12 @@ var tokenDirectories = new Dictionary<string, string>(StringComparer.Ordinal)
 foreach (var directory in tokenDirectories.Values)
     Directory.CreateDirectory(directory);
 
-var vaultRootToken = builder.CreateDefaultPasswordParameter("vault-dev-root-token");
-var ordersDbPassword = builder.CreateDefaultPasswordParameter("orders-db-password");
-var inventoryDbPassword = builder.CreateDefaultPasswordParameter("inventory-db-password");
-var paymentsDbPassword = builder.CreateDefaultPasswordParameter("payments-db-password");
-var rabbitMqPassword = builder.CreateDefaultPasswordParameter("rabbitmq-password");
-var keycloakAdminPassword = builder.CreateDefaultPasswordParameter("keycloak-admin-password");
+var vaultRootToken = CreateGeneratedSecret(builder, "vault-dev-root-token");
+var ordersDbPassword = CreateGeneratedSecret(builder, "orders-db-password");
+var inventoryDbPassword = CreateGeneratedSecret(builder, "inventory-db-password");
+var paymentsDbPassword = CreateGeneratedSecret(builder, "payments-db-password");
+var rabbitMqPassword = CreateGeneratedSecret(builder, "rabbitmq-password");
+var keycloakAdminPassword = CreateGeneratedSecret(builder, "keycloak-admin-password");
 
 var ordersDb = AddPostgres(
     builder,
@@ -81,7 +81,9 @@ var vaultInit = builder
     .AddContainer("vault-init", "hashicorp/vault", "1.21.4")
     .WithEntrypoint("/bin/sh")
     .WithArgs("/bootstrap/vault-init.sh")
+#pragma warning disable S5332 // Vault server-dev is intentionally HTTP-only inside the isolated local network.
     .WithEnvironment("VAULT_ADDR", "http://vault:8200")
+#pragma warning restore S5332
     .WithEnvironment("VAULT_DEV_ROOT_TOKEN_ID", vaultRootToken)
     .WithEnvironment("ORDERS_POSTGRES_USER", "postgres")
     .WithEnvironment("ORDERS_POSTGRES_PASSWORD", ordersDbPassword)
@@ -208,7 +210,18 @@ builder
     .WaitFor(keycloak)
     .WaitFor(ordersApi);
 
-builder.Build().Run();
+await builder.Build().RunAsync();
+
+static IResourceBuilder<ParameterResource> CreateGeneratedSecret(
+    IDistributedApplicationBuilder builder,
+    string name)
+{
+    return builder.AddParameter(
+        name,
+        new GenerateParameterDefault { MinLength = 32 },
+        secret: true,
+        persist: true);
+}
 
 static IResourceBuilder<ContainerResource> AddPostgres(
     IDistributedApplicationBuilder builder,
