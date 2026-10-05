@@ -2,6 +2,7 @@
   <ItemGroup>
     <PackageReference Include="MassTransit.RabbitMQ" />
     <PackageReference Include="MassTransit.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Orders.Application\Orders.Application.csproj" />
@@ -10,5 +11,6 @@
     <ProjectReference Include="..\..\..\BuildingBlocks\Observability\Observability.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\Security\Security.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\Secrets\Secrets.csproj" />
+      <ProjectReference Include="..\..\..\BuildingBlocks\ServiceDefaults\ServiceDefaults.csproj" />
   </ItemGroup>
 </Project>
