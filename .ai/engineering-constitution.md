@@ -18,7 +18,9 @@ The AI harness exists to accelerate small, reviewable improvements while keeping
 10. Small diffs — one task should result in one coherent change, not broad opportunistic refactoring.
 11. Explain important decisions — material architectural choices require an ADR.
 12. Bilingual public docs — public Portuguese and English documentation evolve together.
-13. Governance cannot rewrite itself — the agent cannot edit the harness policy or workflow that governs it.
+13. Supply-chain preservation — GitHub Actions remain commit-pinned, application containers remain non-root, and AI may not weaken CodeQL/Trivy/Scorecard/provenance gates for convenience.
+14. Service-default preservation — readiness/liveness, service discovery, HTTP resilience and edge rate limiting remain centralized unless a human-reviewed ADR explicitly replaces them.
+15. Governance cannot rewrite itself — the agent cannot edit the harness policy or workflow that governs it.
 
 ## Pull-request expectation
 
