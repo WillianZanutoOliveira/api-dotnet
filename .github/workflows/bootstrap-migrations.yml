@@ -63,13 +63,15 @@ jobs:
       - name: Commit generated migrations
         shell: bash
         run: |
-          if git diff --quiet -- src/Services; then
+          git add src/Services
+
+          if git diff --cached --quiet; then
             echo "Migration files already exist; nothing to commit."
             exit 0
           fi
 
           git config user.name "distributed-commerce-migrations"
           git config user.email "distributed-commerce-migrations@users.noreply.github.com"
-          git add src/Services
           git commit -m "Generate initial EF Core migrations"
+          git pull --rebase origin feature/keycloak-ai-engineering-harness
           git push origin HEAD:feature/keycloak-ai-engineering-harness
