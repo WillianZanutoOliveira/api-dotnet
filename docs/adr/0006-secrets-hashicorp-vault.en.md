@@ -32,11 +32,12 @@ docker compose -f docker-compose.yml -f docker-compose.vault.yml up --build
 In this mode:
 
 1. Vault runs in development mode exclusively for the local demo.
-2. A bootstrap writes secrets into KV v2.
+2. A bootstrap writes only secrets that remain static in the demo, such as RabbitMQ credentials, into KV v2.
 3. Each service receives a separate Vault token whose policy can read only its own path.
 4. The token is delivered as a mounted file rather than an application environment variable.
 5. The `DistributedCommerce.Secrets` building block loads Vault data before dependency composition.
-6. Values loaded from Vault override the intentionally empty credential environment variables.
+6. PostgreSQL no longer uses static application passwords in KV: Orders, Inventory and Payments receive temporary credentials from the Database Secrets Engine.
+7. Values loaded from Vault override the intentionally empty credential environment variables.
 
 Current paths:
 
@@ -53,7 +54,7 @@ On Kubernetes, workloads should preferably authenticate using platform identity 
 
 Policies should be service-specific and tokens should be short-lived and narrowly scoped.
 
-A future evolution can replace static PostgreSQL credentials with Vault's Database Secrets Engine to issue dynamic database identities with TTL.
+PostgreSQL credentials now use the Database Secrets Engine. TTL, lease renewal, revocation and runtime roles are documented in [ADR-0007](0007-dynamic-postgresql-credentials.en.md).
 
 ## Consequences
 
