@@ -307,3 +307,6 @@ OpenCover/
 
 # Local environment secrets
 .env
+
+# Aspire local orchestration state and generated Vault tokens
+.aspire/
