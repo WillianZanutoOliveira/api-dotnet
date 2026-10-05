@@ -203,6 +203,46 @@ Locally, the root token exists only to bootstrap Vault in dev mode. Production s
 
 Service collaboration remains asynchronous through RabbitMQ; no synchronous service-to-service HTTP calls were introduced just to demonstrate OAuth. PostgreSQL credential lifecycle is detailed in [ADR-0007](adr/0007-dynamic-postgresql-credentials.en.md). This preserves the existing architectural boundaries.
 
+## Local development orchestration with Aspire
+
+The AppHost under `src/Platform/DistributedCommerce.AppHost` models the local topology without changing system boundaries.
+
+```text
+Aspire AppHost
+├── Infrastructure containers
+│   ├── Keycloak
+│   ├── Vault
+│   ├── vault-init
+│   ├── RabbitMQ
+│   ├── Orders PostgreSQL
+│   ├── Inventory PostgreSQL
+│   └── Payments PostgreSQL
+│
+└── Local .NET projects
+    ├── YARP API Gateway
+    ├── Orders API
+    ├── Inventory
+    ├── Payments
+    └── Notifications
+```
+
+Running .NET workloads as local projects improves the inner loop through breakpoints, incremental builds, per-resource logs and Aspire Dashboard telemetry. External dependencies remain containerized.
+
+The simplification is operational only. The AppHost preserves:
+
+- Keycloak authentication;
+- the YARP → Orders boundary;
+- RabbitMQ;
+- Vault KV v2;
+- Vault Database Secrets Engine;
+- temporary PostgreSQL workload identities;
+- lease renewal and fail-closed behavior;
+- database-per-service ownership.
+
+Secure Docker Compose remains the CI-tested parity model and the alternative for a fully containerized run. The Aspire AppHost is a development tool, not the production deployment architecture.
+
+See [ADR-0008](adr/0008-dotnet-aspire-local-orchestration.en.md) and the [local-development guide](local-development.en.md).
+
 ## Observability
 
 A shared OpenTelemetry building block exposes:
