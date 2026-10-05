@@ -91,7 +91,7 @@ EOF
   vault policy write "$service-service" "$policy_file" >/dev/null
   mkdir -p "$token_dir"
   vault token create     -field=token     -policy="$service-service"     -ttl=24h     -renewable=true > "$token_dir/token"
-  chmod 0400 "$token_dir/token"
+  chmod "${VAULT_TOKEN_FILE_MODE:-0400}" "$token_dir/token"
 }
 
 write_policy_and_token orders platform/orders orders-app
