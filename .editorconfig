@@ -1,0 +1,49 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{cs,csx}]
+indent_style = space
+indent_size = 4
+
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+
+dotnet_style_qualification_for_field = false:warning
+dotnet_style_qualification_for_property = false:warning
+dotnet_style_qualification_for_method = false:warning
+dotnet_style_qualification_for_event = false:warning
+
+dotnet_style_predefined_type_for_locals_parameters_members = true:warning
+dotnet_style_predefined_type_for_member_access = true:warning
+
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
+dotnet_style_readonly_field = true:warning
+
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_prefer_primary_constructors = true:suggestion
+csharp_style_prefer_switch_expression = true:suggestion
+csharp_style_prefer_pattern_matching = true:suggestion
+csharp_style_prefer_not_pattern = true:suggestion
+csharp_style_prefer_null_check_over_type_check = true:suggestion
+
+csharp_new_line_before_open_brace = all
+csharp_indent_case_contents = true
+csharp_indent_switch_labels = true
+
+# Sonar rules selected as hard clean-code signals for this portfolio.
+dotnet_diagnostic.S112.severity = warning
+dotnet_diagnostic.S125.severity = warning
+dotnet_diagnostic.S1481.severity = warning
+dotnet_diagnostic.S1854.severity = warning
+dotnet_diagnostic.S3776.severity = warning
+dotnet_diagnostic.S3923.severity = warning
+dotnet_diagnostic.S6605.severity = warning
+
+[*.{json,yml,yaml,md}]
+indent_style = space
+indent_size = 2
