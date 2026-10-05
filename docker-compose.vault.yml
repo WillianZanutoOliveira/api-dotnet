@@ -41,6 +41,9 @@ services:
       - vault-inventory-token:/tokens/inventory
       - vault-payments-token:/tokens/payments
       - vault-notifications-token:/tokens/notifications
+      - vault-orders-migrator-token:/tokens/orders-migrator
+      - vault-inventory-migrator-token:/tokens/inventory-migrator
+      - vault-payments-migrator-token:/tokens/payments-migrator
 
   orders-db:
     volumes:
@@ -53,6 +56,57 @@ services:
   payments-db:
     volumes:
       - ./deploy/postgres/payments-init.sql:/docker-entrypoint-initdb.d/10-runtime-role.sql:ro
+
+  orders-migrator:
+    environment:
+      ConnectionStrings__orders-db: ""
+      Vault__Address: "http://vault:8200"
+      Vault__TokenFile: "/run/vault/token"
+      Vault__DatabaseRole: "orders-migration"
+      Vault__DatabaseConnectionStringName: "orders-db"
+      Vault__DatabaseHost: "orders-db"
+      Vault__DatabasePort: "5432"
+      Vault__DatabaseName: "orders"
+      Vault__DatabaseRuntimeRole: "orders_migrator"
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+    volumes:
+      - vault-orders-migrator-token:/run/vault:ro
+
+  inventory-migrator:
+    environment:
+      ConnectionStrings__inventory-db: ""
+      Vault__Address: "http://vault:8200"
+      Vault__TokenFile: "/run/vault/token"
+      Vault__DatabaseRole: "inventory-migration"
+      Vault__DatabaseConnectionStringName: "inventory-db"
+      Vault__DatabaseHost: "inventory-db"
+      Vault__DatabasePort: "5432"
+      Vault__DatabaseName: "inventory"
+      Vault__DatabaseRuntimeRole: "inventory_migrator"
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+    volumes:
+      - vault-inventory-migrator-token:/run/vault:ro
+
+  payments-migrator:
+    environment:
+      ConnectionStrings__payments-db: ""
+      Vault__Address: "http://vault:8200"
+      Vault__TokenFile: "/run/vault/token"
+      Vault__DatabaseRole: "payments-migration"
+      Vault__DatabaseConnectionStringName: "payments-db"
+      Vault__DatabaseHost: "payments-db"
+      Vault__DatabasePort: "5432"
+      Vault__DatabaseName: "payments"
+      Vault__DatabaseRuntimeRole: "payments_migrator"
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+    volumes:
+      - vault-payments-migrator-token:/run/vault:ro
 
   orders-api:
     environment:
@@ -71,6 +125,8 @@ services:
       Vault__LeaseRenewalIntervalSeconds: "5"
     depends_on:
       vault-init:
+        condition: service_completed_successfully
+      orders-migrator:
         condition: service_completed_successfully
     volumes:
       - vault-orders-token:/run/vault:ro
@@ -93,6 +149,8 @@ services:
     depends_on:
       vault-init:
         condition: service_completed_successfully
+      inventory-migrator:
+        condition: service_completed_successfully
     volumes:
       - vault-inventory-token:/run/vault:ro
 
@@ -113,6 +171,8 @@ services:
       Vault__LeaseRenewalIntervalSeconds: "5"
     depends_on:
       vault-init:
+        condition: service_completed_successfully
+      payments-migrator:
         condition: service_completed_successfully
     volumes:
       - vault-payments-token:/run/vault:ro
@@ -135,3 +195,6 @@ volumes:
   vault-inventory-token:
   vault-payments-token:
   vault-notifications-token:
+  vault-orders-migrator-token:
+  vault-inventory-migrator-token:
+  vault-payments-migrator-token:
