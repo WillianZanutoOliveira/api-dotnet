@@ -59,12 +59,6 @@ builder.Services.AddMassTransit(x =>
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<OrdersDbContext>();
-    await db.Database.EnsureCreatedAsync();
-}
-
 app.UseExceptionHandler();
 app.UseAuthentication();
 app.UseAuthorization();
