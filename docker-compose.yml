@@ -72,6 +72,39 @@ services:
     volumes:
       - payments-data:/var/lib/postgresql
 
+  orders-migrator:
+    build:
+      context: .
+      dockerfile: src/Platform/DatabaseMigrator/Dockerfile
+    environment:
+      MIGRATION_TARGET: orders
+      ConnectionStrings__orders-db: "Host=orders-db;Port=5432;Database=orders;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+    depends_on:
+      orders-db:
+        condition: service_healthy
+
+  inventory-migrator:
+    build:
+      context: .
+      dockerfile: src/Platform/DatabaseMigrator/Dockerfile
+    environment:
+      MIGRATION_TARGET: inventory
+      ConnectionStrings__inventory-db: "Host=inventory-db;Port=5432;Database=inventory;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+
+  payments-migrator:
+    build:
+      context: .
+      dockerfile: src/Platform/DatabaseMigrator/Dockerfile
+    environment:
+      MIGRATION_TARGET: payments
+      ConnectionStrings__payments-db: "Host=payments-db;Port=5432;Database=payments;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+    depends_on:
+      payments-db:
+        condition: service_healthy
+
   orders-api:
     build:
       context: .
@@ -94,6 +127,8 @@ services:
         condition: service_healthy
       orders-db:
         condition: service_healthy
+      orders-migrator:
+        condition: service_completed_successfully
     ports:
       - "8081:8080"
 
@@ -132,6 +167,8 @@ services:
         condition: service_healthy
       inventory-db:
         condition: service_healthy
+      inventory-migrator:
+        condition: service_completed_successfully
     ports:
       - "8082:8080"
 
@@ -150,6 +187,8 @@ services:
         condition: service_healthy
       payments-db:
         condition: service_healthy
+      payments-migrator:
+        condition: service_completed_successfully
     ports:
       - "8083:8080"
 
