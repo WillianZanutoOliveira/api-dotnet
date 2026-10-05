@@ -14,10 +14,11 @@ The AI harness exists to accelerate small, reviewable improvements while keeping
 6. No secrets in source — credentials belong in secret stores or explicitly local demo fixtures.
 7. Secret-manager preservation — application credentials must remain behind the Vault/platform-secret boundary; agents may not reintroduce effective service passwords through appsettings or application-container environment values.
 8. Dynamic database identity preservation — PostgreSQL workload credentials remain Vault-issued, leased and renewable; agents may not replace them with long-lived passwords or remove fail-closed lease handling.
-9. Small diffs — one task should result in one coherent change, not broad opportunistic refactoring.
-10. Explain important decisions — material architectural choices require an ADR.
-11. Bilingual public docs — public Portuguese and English documentation evolve together.
-12. Governance cannot rewrite itself — the agent cannot edit the harness policy or workflow that governs it.
+9. Local developer experience preservation — Aspire AppHost and secure Docker Compose must preserve the same Keycloak/Vault/dynamic-database security boundaries; convenience must not bypass architecture.
+10. Small diffs — one task should result in one coherent change, not broad opportunistic refactoring.
+11. Explain important decisions — material architectural choices require an ADR.
+12. Bilingual public docs — public Portuguese and English documentation evolve together.
+13. Governance cannot rewrite itself — the agent cannot edit the harness policy or workflow that governs it.
 
 ## Pull-request expectation
 
