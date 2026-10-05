@@ -76,6 +76,21 @@ jobs:
           docker compose -f docker-compose.yml -f docker-compose.vault.yml up -d --build api-gateway
           ./scripts/auth-smoke.sh
 
+      - name: Verify dynamic PostgreSQL credentials
+        run: |
+          dynamic_role="$(
+            docker compose -f docker-compose.yml -f docker-compose.vault.yml exec -T orders-db               sh -lc 'psql -U "$POSTGRES_USER" -d orders -Atc "SELECT rolname FROM pg_roles WHERE rolname LIKE '\''v-%'\'' ORDER BY rolname LIMIT 1;"'
+          )"
+          test -n "$dynamic_role"
+
+          application_connection_string="$(
+            docker compose -f docker-compose.yml -f docker-compose.vault.yml exec -T orders-api               sh -lc 'printf %s "${ConnectionStrings__orders-db:-}"'
+          )"
+          test -z "$application_connection_string"
+
+          sleep 7
+          docker compose -f docker-compose.yml -f docker-compose.vault.yml logs --no-color orders-api             | grep -q "Vault database credential lease renewed."
+
       - name: Smoke stack logs
         if: failure()
         run: docker compose -f docker-compose.yml -f docker-compose.vault.yml logs --no-color vault vault-init keycloak api-gateway orders-api rabbitmq orders-db
