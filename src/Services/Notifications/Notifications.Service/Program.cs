@@ -1,4 +1,4 @@
-using DistributedCommerce.Observability;
+using DistributedCommerce.ServiceDefaults;
 using DistributedCommerce.Secrets;
 using MassTransit;
 
@@ -16,8 +16,7 @@ public static partial class Program
         var rabbitUser = builder.Configuration["RabbitMq:Username"] ?? "guest";
         var rabbitPassword = builder.Configuration["RabbitMq:Password"] ?? "guest";
 
-        builder.Services.AddPlatformObservability(builder.Configuration, "notifications-service");
-        builder.Services.AddHealthChecks();
+        builder.AddPlatformServiceDefaults("notifications-service");
 
         builder.Services.AddMassTransit(x =>
         {
@@ -41,7 +40,7 @@ public static partial class Program
         });
 
         var app = builder.Build();
-        app.MapHealthChecks("/health");
+        app.MapPlatformDefaultEndpoints();
         await app.RunAsync();
     }
 }
