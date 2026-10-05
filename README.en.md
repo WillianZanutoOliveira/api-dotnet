@@ -53,6 +53,7 @@ The goal is to make advanced backend engineering visible in a public portfolio:
 - PostgreSQL;
 - YARP API Gateway with edge authentication;
 - centralized secrets management with HashiCorp Vault and per-workload policies;
+- dynamic PostgreSQL credentials through the Database Secrets Engine with TTL, lease renewal and revocation;
 - OpenTelemetry traces/metrics with Tempo, Prometheus and Grafana;
 - Docker and Docker Compose;
 - Kubernetes-ready health endpoints;
@@ -287,9 +288,11 @@ See [ADR-0004](docs/adr/0004-identity-keycloak.en.md).
 
 ### Secrets vault
 
-The secure profile uses HashiCorp Vault KV v2. Each service receives its own file-mounted token and a policy that can read only its corresponding path. Effective PostgreSQL and RabbitMQ credentials are loaded by `DistributedCommerce.Secrets` before dependency composition.
+The secure profile uses two Vault layers. RabbitMQ remains in KV v2, while PostgreSQL uses the Database Secrets Engine: Orders, Inventory and Payments receive a unique temporary login with TTL and a renewable lease. Each workload receives its own file-mounted Vault token and can only read/renew paths associated with that identity.
 
-Production does not use dev mode/root tokens: prefer platform identity (for example Kubernetes Auth), short-lived tokens, TLS, auditing and rotation. See [secrets management](docs/secrets-management.en.md) and [ADR-0006](docs/adr/0006-secrets-hashicorp-vault.en.md).
+The PostgreSQL connection string is built only in memory. `ConnectionStrings__*-db` remains empty in the container environment, and the host terminates if the lease cannot be renewed — a fail-closed posture.
+
+Production does not use dev mode/root tokens: prefer platform identity (for example Kubernetes Auth), short-lived tokens, TLS, auditing and a dedicated Vault database-administration identity. See [secrets management](docs/secrets-management.en.md), [ADR-0006](docs/adr/0006-secrets-hashicorp-vault.en.md) and [ADR-0007](docs/adr/0007-dynamic-postgresql-credentials.en.md).
 
 ---
 
@@ -358,6 +361,7 @@ RabbitMQ and PostgreSQL are treated as platform dependencies that would normally
 - [ADR-0004 — Identity and authorization with Keycloak](docs/adr/0004-identity-keycloak.en.md)
 - [ADR-0005 — AI-assisted engineering harness](docs/adr/0005-ai-engineering-harness.en.md)
 - [ADR-0006 — Centralized secrets management with HashiCorp Vault](docs/adr/0006-secrets-hashicorp-vault.en.md)
+- [ADR-0007 — Dynamic PostgreSQL credentials with Vault Database Secrets Engine](docs/adr/0007-dynamic-postgresql-credentials.en.md)
 
 ---
 
