@@ -64,8 +64,8 @@ var rabbitMq = builder
     .AddContainer("rabbitmq", "rabbitmq", "4-management")
     .WithEnvironment("RABBITMQ_DEFAULT_USER", "platform")
     .WithEnvironment("RABBITMQ_DEFAULT_PASS", rabbitMqPassword)
-    .WithEndpoint(port: 5672, targetPort: 5672, name: "amqp")
-    .WithHttpEndpoint(port: 15672, targetPort: 15672, name: "management");
+    .WithEndpoint(port: 5672, targetPort: 5672, name: "amqp", isProxied: false)
+    .WithHttpEndpoint(port: 15672, targetPort: 15672, name: "management", isProxied: false);
 
 var keycloak = builder
     .AddContainer("keycloak", "quay.io/keycloak/keycloak", "26.8.0")
@@ -76,7 +76,7 @@ var keycloak = builder
         keycloakRealmDirectory,
         "/opt/keycloak/data/import",
         isReadOnly: true)
-    .WithHttpEndpoint(port: 8180, targetPort: 8080, name: "http")
+    .WithHttpEndpoint(port: 8180, targetPort: 8080, name: "http", isProxied: false)
     .WithHttpHealthCheck("/realms/distributed-commerce/.well-known/openid-configuration")
     .WithOtlpExporter();
 
@@ -85,7 +85,7 @@ var vault = builder
     .WithArgs("server", "-dev")
     .WithEnvironment("VAULT_DEV_ROOT_TOKEN_ID", vaultRootToken)
     .WithEnvironment("VAULT_DEV_LISTEN_ADDRESS", "0.0.0.0:8200")
-    .WithHttpEndpoint(port: 8200, targetPort: 8200, name: "http")
+    .WithHttpEndpoint(port: 8200, targetPort: 8200, name: "http", isProxied: false)
     .WithHttpHealthCheck("/v1/sys/health");
 
 var vaultInit = builder
@@ -260,7 +260,7 @@ static IResourceBuilder<ContainerResource> AddPostgres(
         .WithEnvironment("POSTGRES_DB", databaseName)
         .WithEnvironment("POSTGRES_USER", "postgres")
         .WithEnvironment("POSTGRES_PASSWORD", password)
-        .WithEndpoint(port: port, targetPort: 5432, name: "postgres")
+        .WithEndpoint(port: port, targetPort: 5432, name: "postgres", isProxied: false)
         .WithBindMount(
             initScript,
             "/docker-entrypoint-initdb.d/10-runtime-role.sql",
