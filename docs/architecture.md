@@ -339,3 +339,76 @@ Os manifests Kubernetes usam:
 - liveness em `/alive`.
 
 Veja [ADR-0010](adr/0010-software-supply-chain.md).
+
+
+## Schema lifecycle e identidade de migration
+
+A aplicação não possui responsabilidade de criar ou migrar schema.
+
+```text
+PostgreSQL
+   |
+   +--> <service>_migrator (NOLOGIN, DDL)
+   |        ^
+   |        |
+   |     Vault <service>-migration
+   |        ^
+   |        |
+   |  DatabaseMigrator one-shot
+   |
+   +--> <service>_runtime (NOLOGIN, DML)
+            ^
+            |
+         Vault <service>-app
+            ^
+            |
+        application
+```
+
+EF Core Migrations são versionadas por bounded context. O `DatabaseMigrator` executa antes de Orders, Inventory e Payments em Compose/Aspire; no modelo GitOps ele é um Argo CD `PreSync` Job.
+
+Default privileges garantem que objetos criados pela role migrator concedam DML ao runtime sem entregar DDL à aplicação.
+
+Veja [ADR-0011](adr/0011-ef-migrations-vault-deployment-identity.md).
+
+## Guardrails executáveis
+
+A arquitetura é protegida por três camadas adicionais:
+
+- `Architecture.Tests` bloqueia dependências proibidas;
+- `Contracts.Compatibility.Tests` protege o shape dos integration events;
+- `Chaos.Tests` valida falha e recuperação de conectividade PostgreSQL com Testcontainers + Toxiproxy.
+
+Esses testes executam no mesmo `dotnet test` do CI.
+
+## GitOps e progressive delivery
+
+O exemplo de produção em `deploy/gitops` separa:
+
+```text
+build artifact
+    |
+    v
+versioned OCI image + attestation
+    |
+    v
+promotion PR
+    |
+    v
+main
+    |
+    v
+Argo CD reconciliation
+    |
+    +--> PreSync database migration
+    |
+    v
+Argo Rollouts canary
+20% -> health analysis -> 50% -> health analysis -> 100%
+```
+
+Runtime e migrator usam Kubernetes ServiceAccounts e Vault Kubernetes Auth roles diferentes.
+
+O canary consulta especificamente `orders-api-canary/health/deployment`. Sem traffic router dedicado, o exemplo usa distribuição aproximada por réplicas; um ambiente que exija pesos exatos deve adicionar um ingress/service mesh suportado, não um componente apenas decorativo.
+
+Veja [ADR-0012](adr/0012-architecture-contract-chaos-gitops.md) e [deploy/gitops](../deploy/gitops/README.md).
