@@ -24,6 +24,8 @@ Before changing code, read:
 
 - Never commit credentials, tokens, private keys or real customer data.
 - Application credentials belong in Vault (or the target platform secret manager), not in appsettings or application-container environment variables.
+- PostgreSQL workload credentials must remain dynamic through the Vault Database Secrets Engine; do not replace them with long-lived application passwords.
+- Preserve lease renewal and fail-closed behavior for dynamic database identities.
 - Never trust a customer/user identifier supplied by the request body when it can be derived from authenticated identity.
 - Do not disable issuer, audience, lifetime or signature validation to make tests pass.
 - Do not weaken authorization policies.
