@@ -20,7 +20,11 @@ The AI harness exists to accelerate small, reviewable improvements while keeping
 12. Bilingual public docs — public Portuguese and English documentation evolve together.
 13. Supply-chain preservation — GitHub Actions remain commit-pinned, application containers remain non-root, and AI may not weaken CodeQL/Trivy/Scorecard/provenance gates for convenience.
 14. Service-default preservation — readiness/liveness, service discovery, HTTP resilience and edge rate limiting remain centralized unless a human-reviewed ADR explicitly replaces them.
-15. Governance cannot rewrite itself — the agent cannot edit the harness policy or workflow that governs it.
+15. Migration privilege separation — runtime database identities remain DML-only and schema changes are applied only through the separate Vault-backed migration identity.
+16. Executable architecture — architecture/contract/chaos tests cannot be removed or weakened merely to make a change pass.
+17. Reviewable GitOps delivery — production promotion remains pull-request driven; AI cannot introduce automatic merge or imperative production deployment.
+18. Progressive delivery preservation — migration-before-rollout and canary analysis gates remain in place unless a human-reviewed ADR replaces them.
+19. Governance cannot rewrite itself — the agent cannot edit the harness policy or workflow that governs it.
 
 ## Pull-request expectation
 
