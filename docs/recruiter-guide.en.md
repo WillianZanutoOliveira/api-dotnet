@@ -216,3 +216,30 @@ It is a public engineering reference designed to make the following concerns ins
 - containerized delivery;
 - CI quality gates;
 - explicit technical trade-offs.
+
+
+## 12. Service Defaults, API contract and edge protection
+
+Evidence:
+
+- [Service Defaults](../src/BuildingBlocks/ServiceDefaults/PlatformServiceDefaults.cs)
+- [Gateway rate limiting](../src/Gateway/ApiGateway/Program.cs)
+- [Orders OpenAPI](../src/Services/Orders/Orders.Api/Program.cs)
+- [Aspire topology test](../tests/DistributedCommerce.AppHost.Tests/LocalTopologyTests.cs)
+- [ADR-0009](./adr/0009-service-defaults-api-resilience.en.md)
+
+The project demonstrates separate readiness/liveness semantics, service discovery, resilient HTTP defaults, identity-partitioned rate limiting and a verifiable OpenAPI contract.
+
+## 13. Software supply chain and container hardening
+
+Evidence:
+
+- [OpenSSF Scorecard](../.github/workflows/scorecard.yml)
+- [Security pipeline](../.github/workflows/security.yml)
+- [Attested OCI release workflow](../.github/workflows/release.yml)
+- [CODEOWNERS](../.github/CODEOWNERS)
+- [Security Policy](../SECURITY.md)
+- [Kubernetes hardening](../deploy/k8s/services.yaml)
+- [ADR-0010](./adr/0010-software-supply-chain.en.md)
+
+The repository demonstrates commit-pinned GitHub Actions, CodeQL, Trivy, SBOM, OpenSSF Scorecard, non-root containers, Kubernetes security contexts and provenance attestations for published images.
