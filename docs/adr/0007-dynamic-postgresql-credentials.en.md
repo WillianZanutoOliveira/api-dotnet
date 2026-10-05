@@ -56,9 +56,9 @@ Each database owns a stable NOLOGIN PostgreSQL role:
 
 Vault creates a temporary login and grants membership only in the matching runtime role.
 
-The connection includes `Options=-c role=<runtime_role>`, so sessions switch to the stable runtime role. Schema objects created during the demo bootstrap are therefore associated with the stable authorization identity rather than the random dynamic login.
+The connection includes `Options=-c role=<runtime_role>`, so sessions switch to the stable runtime role while the ephemeral login remains only the temporary identity issued by Vault.
 
-This prevents schema ownership from being tied to ephemeral credential names.
+The runtime role has no DDL permission. Schema ownership and object creation belong to a separate stable migration role, as documented in [ADR-0011](0011-ef-migrations-vault-deployment-identity.en.md).
 
 ## TTL and renewal
 
@@ -126,21 +126,16 @@ Production should:
 
 ## Schema migrations
 
-Runtime should not be treated as a migration identity in a production platform.
+Migration/runtime separation is now implemented rather than merely recommended.
 
-This portfolio keeps `EnsureCreatedAsync` so the demo remains self-contained. The runtime role therefore has schema `CREATE` locally.
+Each database has two stable roles:
 
-The recommended production split is:
+- `<service>_runtime` — workload DML only, without schema `CREATE`;
+- `<service>_migrator` — DDL required for EF Core migrations.
 
-```text
-Migration identity (CI/CD)
-        |
-        +--> DDL / migrations
+Vault issues separate dynamic credentials for `<service>-app` and `<service>-migration`. A one-shot `DatabaseMigrator` runs `MigrateAsync()` before the workload starts. Services do not run `EnsureCreatedAsync` or schema migrations during application startup.
 
-Runtime dynamic identity
-        |
-        +--> required DML only
-```
+Ownership, default privileges and GitOps/PreSync details are documented in [ADR-0011](0011-ef-migrations-vault-deployment-identity.en.md).
 
 ## CI validation
 
@@ -151,7 +146,11 @@ The secure pipeline verifies that:
 3. PostgreSQL contains a Vault-generated dynamic role;
 4. `ConnectionStrings__orders-db` remains empty in the application-container environment;
 5. the effective connection string exists only in the in-memory Vault-loaded configuration;
-6. logs confirm at least one database lease renewal during the smoke test.
+6. logs confirm at least one runtime database lease renewal;
+7. `__EFMigrationsHistory` proves EF Migrations created the schema;
+8. `orders_runtime` has no schema `CREATE`;
+9. `orders_migrator` has DDL permission;
+10. a Vault-generated migration login exists.
 
 ## Consequences
 
@@ -170,7 +169,7 @@ The secure pipeline verifies that:
 - Vault participates in service bootstrap;
 - lease renewal must be monitored;
 - a new credential is required after `max_ttl`;
-- production should separate schema migrations from runtime;
+- migration and runtime identities, policies and lifecycles must remain separate;
 - Vault HA, unseal, backup and disaster recovery become platform concerns.
 
 ## Alternatives considered
