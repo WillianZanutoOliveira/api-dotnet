@@ -2,6 +2,7 @@
   <Project Path="src/BuildingBlocks/Contracts/Contracts.csproj" />
   <Project Path="src/BuildingBlocks/Observability/Observability.csproj" />
   <Project Path="src/BuildingBlocks/Security/Security.csproj" />
+  <Project Path="src/Gateway/ApiGateway/ApiGateway.csproj" />
   <Project Path="src/Services/Orders/Orders.Domain/Orders.Domain.csproj" />
   <Project Path="src/Services/Orders/Orders.Application/Orders.Application.csproj" />
   <Project Path="src/Services/Orders/Orders.Infrastructure/Orders.Infrastructure.csproj" />
@@ -10,4 +11,5 @@
   <Project Path="src/Services/Payments/Payments.Service/Payments.Service.csproj" />
   <Project Path="src/Services/Notifications/Notifications.Service/Notifications.Service.csproj" />
   <Project Path="tests/Orders.Domain.Tests/Orders.Domain.Tests.csproj" />
+  <Project Path="tests/Orders.Persistence.IntegrationTests/Orders.Persistence.IntegrationTests.csproj" />
 </Solution>

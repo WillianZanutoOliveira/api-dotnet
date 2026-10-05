@@ -86,6 +86,7 @@ services:
       Keycloak__Issuer: "http://localhost:8180/realms/distributed-commerce"
       Keycloak__Audience: "distributed-commerce-api"
       Keycloak__RequireHttpsMetadata: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
     depends_on:
       keycloak:
         condition: service_started
@@ -96,6 +97,26 @@ services:
     ports:
       - "8081:8080"
 
+  api-gateway:
+    build:
+      context: .
+      dockerfile: src/Gateway/ApiGateway/Dockerfile
+    environment:
+      Keycloak__Authority: "http://keycloak:8080/realms/distributed-commerce"
+      Keycloak__MetadataAddress: "http://keycloak:8080/realms/distributed-commerce/.well-known/openid-configuration"
+      Keycloak__Issuer: "http://localhost:8180/realms/distributed-commerce"
+      Keycloak__Audience: "distributed-commerce-api"
+      Keycloak__RequireHttpsMetadata: "false"
+      ReverseProxy__Clusters__orders-cluster__Destinations__primary__Address: "http://orders-api:8080/"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+    depends_on:
+      keycloak:
+        condition: service_started
+      orders-api:
+        condition: service_started
+    ports:
+      - "8080:8080"
+
   inventory-service:
     build:
       context: .
@@ -105,6 +126,7 @@ services:
       RabbitMq__Host: rabbitmq
       RabbitMq__Username: ${RABBITMQ_DEFAULT_USER}
       RabbitMq__Password: ${RABBITMQ_DEFAULT_PASS}
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -122,6 +144,7 @@ services:
       RabbitMq__Host: rabbitmq
       RabbitMq__Username: ${RABBITMQ_DEFAULT_USER}
       RabbitMq__Password: ${RABBITMQ_DEFAULT_PASS}
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -138,13 +161,63 @@ services:
       RabbitMq__Host: rabbitmq
       RabbitMq__Username: ${RABBITMQ_DEFAULT_USER}
       RabbitMq__Password: ${RABBITMQ_DEFAULT_PASS}
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
     depends_on:
       rabbitmq:
         condition: service_healthy
     ports:
       - "8084:8080"
 
+  tempo:
+    image: grafana/tempo:2.10.8
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./deploy/observability/tempo.yml:/etc/tempo.yml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "3200:3200"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.162.0
+    command: ["--config=/etc/otelcol-contrib/config.yml"]
+    volumes:
+      - ./deploy/observability/otel-collector.yml:/etc/otelcol-contrib/config.yml:ro
+    depends_on:
+      - tempo
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    volumes:
+      - ./deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - otel-collector
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:13.2.3
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./deploy/observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - tempo
+    ports:
+      - "3000:3000"
+
 volumes:
   orders-data:
   inventory-data:
   payments-data:
+  tempo-data:
+  grafana-data:

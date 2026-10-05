@@ -11,10 +11,15 @@ namespace DistributedCommerce.Observability;
 public static class PlatformTelemetry
 {
     public const string SourceName = "DistributedCommerce";
+
     public static readonly ActivitySource ActivitySource = new(SourceName);
     public static readonly Meter Meter = new(SourceName);
-    public static readonly Counter<long> MessagesProcessed = Meter.CreateCounter<long>("distributed_commerce.messages.processed");
-    public static readonly Counter<long> MessagesFailed = Meter.CreateCounter<long>("distributed_commerce.messages.failed");
+
+    public static readonly Counter<long> MessagesProcessed =
+        Meter.CreateCounter<long>("distributed_commerce.messages.processed");
+
+    public static readonly Counter<long> MessagesFailed =
+        Meter.CreateCounter<long>("distributed_commerce.messages.failed");
 
     public static IServiceCollection AddPlatformObservability(
         this IServiceCollection services,
@@ -28,7 +33,10 @@ public static class PlatformTelemetry
             .ConfigureResource(resource => resource.AddService(serviceName))
             .WithTracing(tracing =>
             {
-                tracing.AddSource(SourceName);
+                tracing
+                    .AddSource(SourceName)
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation();
 
                 if (Uri.TryCreate(otlpEndpoint, UriKind.Absolute, out var endpoint))
                 {
@@ -41,7 +49,11 @@ public static class PlatformTelemetry
             })
             .WithMetrics(metrics =>
             {
-                metrics.AddMeter(SourceName);
+                metrics
+                    .AddMeter(SourceName)
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    .AddRuntimeInstrumentation();
 
                 if (Uri.TryCreate(otlpEndpoint, UriKind.Absolute, out var endpoint))
                 {
