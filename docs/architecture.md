@@ -203,6 +203,46 @@ No ambiente local, o root token existe apenas para bootstrap do Vault em modo de
 
 A comunicação entre serviços continua assíncrona por RabbitMQ; não foram introduzidas chamadas HTTP service-to-service apenas para demonstrar OAuth. O lifecycle das credenciais PostgreSQL está detalhado no [ADR-0007](adr/0007-dynamic-postgresql-credentials.md). Isso preserva os limites arquiteturais já existentes.
 
+## Orquestração de desenvolvimento local com Aspire
+
+O AppHost em `src/Platform/DistributedCommerce.AppHost` modela a topologia local sem alterar os limites arquiteturais do sistema.
+
+```text
+Aspire AppHost
+├── Infrastructure containers
+│   ├── Keycloak
+│   ├── Vault
+│   ├── vault-init
+│   ├── RabbitMQ
+│   ├── Orders PostgreSQL
+│   ├── Inventory PostgreSQL
+│   └── Payments PostgreSQL
+│
+└── Local .NET projects
+    ├── YARP API Gateway
+    ├── Orders API
+    ├── Inventory
+    ├── Payments
+    └── Notifications
+```
+
+A escolha de executar os workloads .NET como projetos locais melhora o inner loop: breakpoints, recompilação incremental, logs por recurso e telemetria aparecem no Aspire Dashboard. Dependências externas continuam containerizadas.
+
+A simplificação é somente operacional. O AppHost preserva:
+
+- autenticação Keycloak;
+- boundary YARP → Orders;
+- RabbitMQ;
+- Vault KV v2;
+- Vault Database Secrets Engine;
+- login PostgreSQL temporário por workload;
+- lease renewal e fail closed;
+- database-per-service.
+
+O Docker Compose seguro continua sendo o modelo de paridade usado pelo CI e a alternativa para executar toda a aplicação em containers. O Aspire AppHost é uma ferramenta de desenvolvimento, não a definição da arquitetura de implantação em produção.
+
+Veja [ADR-0008](adr/0008-dotnet-aspire-local-orchestration.md) e o [guia de desenvolvimento local](local-development.md).
+
 ## Observabilidade
 
 Um building block compartilhado de OpenTelemetry expõe:
