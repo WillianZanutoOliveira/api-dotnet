@@ -46,6 +46,27 @@ public static class PlatformServiceDefaults
                 Predicate = static registration => registration.Tags.Contains("live")
             });
 
+        app.MapGet(
+                "/health/deployment",
+                async (
+                    HealthCheckService healthChecks,
+                    CancellationToken cancellationToken) =>
+                {
+                    var report = await healthChecks.CheckHealthAsync(cancellationToken);
+                    var healthy = report.Status == HealthStatus.Healthy;
+
+                    return Results.Json(
+                        new
+                        {
+                            ok = healthy,
+                            status = report.Status.ToString()
+                        },
+                        statusCode: healthy
+                            ? StatusCodes.Status200OK
+                            : StatusCodes.Status503ServiceUnavailable);
+                })
+            .ExcludeFromDescription();
+
         return app;
     }
 }
