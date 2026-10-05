@@ -25,6 +25,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+      VAULT_TOKEN_FILE_OWNER: "1654:1654"
     depends_on:
       vault:
         condition: service_healthy
