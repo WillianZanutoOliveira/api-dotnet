@@ -118,7 +118,10 @@ The CI pipeline validates:
 - Sonar/.editorconfig/dotnet format quality gate;
 - unit and Testcontainers tests;
 - Gateway + four service image builds;
-- Keycloak → YARP → Orders smoke test using the Vault profile.
+- Keycloak → YARP → Orders smoke test using the Vault profile;
+- a real ephemeral PostgreSQL user created by Vault;
+- no effective connection string in the application environment;
+- actual lease renewal during CI.
 
 ## 7. Security and identity
 
@@ -131,7 +134,16 @@ Useful evidence:
 
 The project demonstrates JWT validation, audience/issuer checks, RBAC and object-level authorization. CustomerId is not trusted from the payload: it comes from the authenticated sub.
 
-Secrets use HashiCorp Vault KV v2 with a token and least-privilege read policy per service. Evidence: [secrets building block](../src/BuildingBlocks/Secrets/VaultConfigurationExtensions.cs), [Vault overlay](../docker-compose.vault.yml) and [ADR-0006](./adr/0006-secrets-hashicorp-vault.en.md).
+Secrets use workload-scoped Vault tokens and policies. RabbitMQ remains in KV v2, while PostgreSQL uses dynamic credentials. Orders, Inventory and Payments receive a temporary login with TTL + renewable lease, while permissions live in stable PostgreSQL `NOLOGIN` roles.
+
+Evidence:
+
+- [Dynamic secret loader](../src/BuildingBlocks/Secrets/VaultConfigurationExtensions.cs)
+- [Lease renewal service](../src/BuildingBlocks/Secrets/VaultLeaseRenewalService.cs)
+- [Database Secrets Engine bootstrap](../deploy/vault/vault-init.sh)
+- [Vault overlay](../docker-compose.vault.yml)
+- [ADR-0006 — secrets vault](./adr/0006-secrets-hashicorp-vault.en.md)
+- [ADR-0007 — dynamic PostgreSQL credentials](./adr/0007-dynamic-postgresql-credentials.en.md)
 
 ## 8. AI engineering automation
 
@@ -165,6 +177,7 @@ The ADRs document trade-offs instead of only implementation details:
 - [ADR-0004 — Identity and authorization with Keycloak](./adr/0004-identity-keycloak.en.md)
 - [ADR-0005 — AI-assisted engineering harness](./adr/0005-ai-engineering-harness.en.md)
 - [ADR-0006 — Centralized secrets management with HashiCorp Vault](./adr/0006-secrets-hashicorp-vault.en.md)
+- [ADR-0007 — Dynamic PostgreSQL credentials with Vault Database Secrets Engine](./adr/0007-dynamic-postgresql-credentials.en.md)
 
 ## What this repository is intended to demonstrate
 
