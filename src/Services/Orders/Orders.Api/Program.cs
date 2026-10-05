@@ -9,6 +9,7 @@ using Orders.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 await builder.Configuration.AddVaultSecretsAsync();
+builder.Services.AddVaultLeaseRenewal();
 
 var ordersConnection = builder.Configuration.GetConnectionString("orders-db")
     ?? "Host=localhost;Port=5432;Database=orders;Username=postgres;Password=postgres";
