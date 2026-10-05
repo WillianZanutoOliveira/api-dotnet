@@ -76,13 +76,13 @@ Esses endpoints não armazenam uma senha fixa de aplicação. Cada leitura gera 
 
 ## Modelo de autorização PostgreSQL
 
-As permissões estáveis ficam em roles `NOLOGIN`:
+As permissões estáveis ficam em roles `NOLOGIN` separadas para runtime e migration:
 
-| Serviço | Role dinâmica Vault | Role PostgreSQL estável |
-| --- | --- | --- |
-| Orders | `orders-app` | `orders_runtime` |
-| Inventory | `inventory-app` | `inventory_runtime` |
-| Payments | `payments-app` | `payments_runtime` |
+| Serviço | Vault runtime | PostgreSQL runtime | Vault migration | PostgreSQL migrator |
+| --- | --- | --- | --- | --- |
+| Orders | `orders-app` | `orders_runtime` | `orders-migration` | `orders_migrator` |
+| Inventory | `inventory-app` | `inventory_runtime` | `inventory-migration` | `inventory_migrator` |
+| Payments | `payments-app` | `payments_runtime` | `payments-migration` | `payments_migrator` |
 
 O usuário temporário recebe apenas membership na role de runtime correspondente.
 
@@ -95,7 +95,8 @@ v-token-orders-...  (LOGIN, temporário)
                          |
                          +--> CONNECT orders
                          +--> USAGE public
-                         +--> CREATE public apenas no demo local
+                         +--> DML concedido por default privileges
+                         +--> sem CREATE no schema
 ```
 
 O connection string usa:
@@ -182,6 +183,12 @@ Inventory e Payments possuem boundaries equivalentes para suas próprias roles.
 
 Notifications não possui database role porque não usa PostgreSQL.
 
+### Identidade de migration
+
+O token do migrator é diferente do token da aplicação. Ele só pode pedir credenciais em `database/creds/<service>-migration`, recebe TTL curto e não pode ler os segredos KV/RabbitMQ do workload.
+
+A credencial dinâmica resultante assume `<service>_migrator`, enquanto a aplicação continua assumindo `<service>_runtime`.
+
 ## Fail closed
 
 Quando o perfil Vault está configurado, falhas de secrets não são tratadas com fallback silencioso.
@@ -206,9 +213,11 @@ Ele comprova que:
 - Testcontainers consegue usar PostgreSQL real;
 - Vault configura o Database Secrets Engine;
 - Orders inicia sem connection string efetivo no ambiente;
-- o PostgreSQL contém um login dinâmico gerado pelo Vault;
+- o PostgreSQL contém logins dinâmicos de runtime e migration gerados pelo Vault;
+- `__EFMigrationsHistory` confirma migration EF aplicada;
+- runtime não possui DDL e migrator possui `CREATE`;
 - a API cria e consulta pedidos através de Keycloak + YARP;
-- o log registra renovação de lease;
+- o log registra renovação do lease de runtime;
 - CodeQL passa;
 - Trivy não encontra vulnerabilidades HIGH/CRITICAL não corrigidas nem secrets detectáveis;
 - SBOM SPDX é gerado.
@@ -253,14 +262,16 @@ Criar uma identidade administrativa exclusiva para o Vault, com somente os privi
 
 ### Migrations
 
-Separar DDL de runtime:
+A separação já está implementada:
 
 ```text
-CI/CD migration identity ------> migrations / DDL
-runtime dynamic identity ------> DML
+DatabaseMigrator + Vault migration identity ------> EF Migrations / DDL
+application + Vault runtime identity -------------> DML
 ```
 
-No portfólio, `EnsureCreatedAsync` continua existindo para manter a experiência local simples. Por isso as roles de runtime recebem `CREATE` no schema local.
+Os serviços não executam `EnsureCreatedAsync` nem migrations no startup. O `DatabaseMigrator` one-shot roda antes deles em Compose/Aspire e como `PreSync` Job no modelo GitOps. A role runtime não possui `CREATE` no schema.
+
+Veja [ADR-0011](adr/0011-ef-migrations-vault-deployment-identity.md).
 
 ## Arquivos principais
 
