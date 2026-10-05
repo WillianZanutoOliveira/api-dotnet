@@ -338,18 +338,19 @@ O GitHub Actions valida toda mudança relevante com:
 
 1. restore de dependências;
 2. build em Release;
-3. testes automatizados;
-4. coleta de cobertura de código;
-5. quality gate Sonar/.editorconfig/dotnet format;
-6. testes de integração com Testcontainers;
-7. build do container de API Gateway;
-8. build do container de Orders;
-9. build do container de Inventory;
-10. build do container de Payments;
-11. build do container de Notifications;
-12. smoke test real via Gateway + Keycloak + Vault;
-13. verificação de credencial PostgreSQL dinâmica real, ausência de connection string efetivo no environment e renovação de lease;
-14. workflow de segurança com CodeQL, Trivy e SBOM.
+3. validação explícita do .NET Aspire AppHost;
+4. testes automatizados;
+5. coleta de cobertura de código;
+6. quality gate Sonar/.editorconfig/dotnet format;
+7. testes de integração com Testcontainers;
+8. build do container de API Gateway;
+9. build do container de Orders;
+10. build do container de Inventory;
+11. build do container de Payments;
+12. build do container de Notifications;
+13. smoke test real via Gateway + Keycloak + Vault;
+14. verificação de credencial PostgreSQL dinâmica real, ausência de connection string efetivo no environment e renovação de lease;
+15. workflow de segurança com CodeQL, Trivy e SBOM.
 
 O Dependabot monitora dependências NuGet e GitHub Actions.
 
