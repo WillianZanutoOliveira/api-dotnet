@@ -5,6 +5,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\BuildingBlocks\Observability\Observability.csproj" />
     <ProjectReference Include="..\..\BuildingBlocks\Security\Security.csproj" />
-      <ProjectReference Include="..\..\BuildingBlocks\ServiceDefaults\ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\BuildingBlocks\ServiceDefaults\ServiceDefaults.csproj" />
   </ItemGroup>
 </Project>
