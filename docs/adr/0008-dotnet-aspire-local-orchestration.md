@@ -185,6 +185,12 @@ Docker Compose continua sendo usado para:
 
 A existência das duas opções é intencional.
 
+### Dependência do Aspire CLI
+
+O AppHost configura explicitamente `AspireUseCliBundle=false`. Na versão atual do Aspire isso mantém `dotnet run` funcional usando as dependências de orquestração restauradas pelo SDK, sem transformar o Aspire CLI em pré-requisito adicional para um novo contribuidor.
+
+O SDK atual recomenda a migração futura para o CLI bundle. Essa decisão deve ser revisitada quando o ecossistema tornar o bundle obrigatório; até lá, o repositório prioriza o menor atrito possível de onboarding.
+
 ## Consequências
 
 ### Benefícios
