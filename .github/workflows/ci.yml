@@ -58,3 +58,18 @@ jobs:
 
       - name: Build Notifications image
         run: docker build -f src/Services/Notifications/Notifications.Service/Dockerfile -t distributed-commerce/notifications:ci .
+
+      - name: Authentication and authorization smoke test
+        run: |
+          cp .env.example .env
+          chmod +x scripts/auth-smoke.sh
+          docker compose up -d --build keycloak rabbitmq orders-db orders-api
+          ./scripts/auth-smoke.sh
+
+      - name: Smoke stack logs
+        if: failure()
+        run: docker compose logs --no-color keycloak orders-api rabbitmq orders-db
+
+      - name: Stop smoke stack
+        if: always()
+        run: docker compose down -v --remove-orphans

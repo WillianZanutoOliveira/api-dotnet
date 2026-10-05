@@ -1,4 +1,15 @@
 services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.0
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD}
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./deploy/keycloak/distributed-commerce-realm.json:/opt/keycloak/data/import/distributed-commerce-realm.json:ro
+
   rabbitmq:
     image: rabbitmq:4-management
     environment:
@@ -70,7 +81,14 @@ services:
       RabbitMq__Host: rabbitmq
       RabbitMq__Username: ${RABBITMQ_DEFAULT_USER}
       RabbitMq__Password: ${RABBITMQ_DEFAULT_PASS}
+      Keycloak__Authority: "http://keycloak:8080/realms/distributed-commerce"
+      Keycloak__MetadataAddress: "http://keycloak:8080/realms/distributed-commerce/.well-known/openid-configuration"
+      Keycloak__Issuer: "http://localhost:8180/realms/distributed-commerce"
+      Keycloak__Audience: "distributed-commerce-api"
+      Keycloak__RequireHttpsMetadata: "false"
     depends_on:
+      keycloak:
+        condition: service_started
       rabbitmq:
         condition: service_healthy
       orders-db:

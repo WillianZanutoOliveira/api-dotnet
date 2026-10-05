@@ -1,6 +1,7 @@
 <Solution>
   <Project Path="src/BuildingBlocks/Contracts/Contracts.csproj" />
   <Project Path="src/BuildingBlocks/Observability/Observability.csproj" />
+  <Project Path="src/BuildingBlocks/Security/Security.csproj" />
   <Project Path="src/Services/Orders/Orders.Domain/Orders.Domain.csproj" />
   <Project Path="src/Services/Orders/Orders.Application/Orders.Application.csproj" />
   <Project Path="src/Services/Orders/Orders.Infrastructure/Orders.Infrastructure.csproj" />

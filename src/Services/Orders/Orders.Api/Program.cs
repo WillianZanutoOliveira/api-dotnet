@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using DistributedCommerce.Observability;
+using DistributedCommerce.Security;
 using MassTransit;
 using Orders.Application;
 using Orders.Infrastructure;
@@ -15,6 +17,7 @@ var rabbitPassword = builder.Configuration["RabbitMq:Password"] ?? "guest";
 builder.Services.AddOrdersInfrastructure(ordersConnection);
 builder.Services.AddScoped<OrderService>();
 builder.Services.AddPlatformObservability(builder.Configuration, "orders-api");
+builder.Services.AddPlatformIdentity(builder.Configuration);
 builder.Services.AddProblemDetails();
 builder.Services.AddHealthChecks();
 
@@ -59,46 +62,72 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseExceptionHandler();
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapHealthChecks("/health");
+
+app.MapGet("/me", (ClaimsPrincipal user) =>
+{
+    var roles = user.FindAll("roles").Select(claim => claim.Value).Distinct().Order().ToArray();
+
+    return Results.Ok(new
+    {
+        subject = user.FindFirst("sub")?.Value,
+        username = user.FindFirst("preferred_username")?.Value,
+        roles
+    });
+}).RequireAuthorization();
 
 app.MapPost("/orders", async (
     CreateOrderRequest request,
+    ClaimsPrincipal user,
     OrderService service,
     CancellationToken cancellationToken) =>
 {
-    var errors = Validate(request);
+    var customerId = user.FindFirst("sub")?.Value;
+    if (string.IsNullOrWhiteSpace(customerId))
+        return Results.Unauthorized();
 
+    var errors = Validate(request);
     if (errors.Count > 0)
         return Results.ValidationProblem(errors);
 
     var order = await service.CreateAsync(
         new CreateOrderCommand(
-            request.CustomerId,
+            customerId,
             request.Items
                 .Select(item => new CreateOrderItem(item.Sku, item.Quantity, item.UnitPrice))
                 .ToArray()),
         cancellationToken);
 
     return Results.Created($"/orders/{order.Id}", order);
-});
+}).RequireAuthorization(SecurityPolicies.OrdersWrite);
 
 app.MapGet("/orders/{id:guid}", async (
     Guid id,
+    ClaimsPrincipal user,
     OrderService service,
     CancellationToken cancellationToken) =>
 {
     var order = await service.GetAsync(id, cancellationToken);
-    return order is null ? Results.NotFound() : Results.Ok(order);
-});
+    if (order is null)
+        return Results.NotFound();
+
+    var subject = user.FindFirst("sub")?.Value;
+    var isAdmin = user.IsInRole("admin");
+
+    if (!isAdmin && !string.Equals(order.CustomerId, subject, StringComparison.Ordinal))
+        return Results.Forbid();
+
+    return Results.Ok(order);
+}).RequireAuthorization(SecurityPolicies.OrdersRead);
 
 app.Run();
 
 static Dictionary<string, string[]> Validate(CreateOrderRequest request)
 {
     var errors = new Dictionary<string, string[]>();
-
-    if (string.IsNullOrWhiteSpace(request.CustomerId))
-        errors["customerId"] = ["CustomerId is required."];
 
     if (request.Items is null || request.Items.Count == 0)
         errors["items"] = ["At least one item is required."];
@@ -111,5 +140,5 @@ static Dictionary<string, string[]> Validate(CreateOrderRequest request)
     return errors;
 }
 
-public sealed record CreateOrderRequest(string CustomerId, IReadOnlyCollection<CreateOrderItemRequest> Items);
+public sealed record CreateOrderRequest(IReadOnlyCollection<CreateOrderItemRequest> Items);
 public sealed record CreateOrderItemRequest(string Sku, int Quantity, decimal UnitPrice);
