@@ -35,6 +35,18 @@ services:
       - vault-payments-token:/tokens/payments
       - vault-notifications-token:/tokens/notifications
 
+  orders-db:
+    volumes:
+      - ./deploy/postgres/orders-init.sql:/docker-entrypoint-initdb.d/10-runtime-role.sql:ro
+
+  inventory-db:
+    volumes:
+      - ./deploy/postgres/inventory-init.sql:/docker-entrypoint-initdb.d/10-runtime-role.sql:ro
+
+  payments-db:
+    volumes:
+      - ./deploy/postgres/payments-init.sql:/docker-entrypoint-initdb.d/10-runtime-role.sql:ro
+
   orders-api:
     environment:
       ConnectionStrings__orders-db: ""
@@ -43,6 +55,13 @@ services:
       Vault__Address: "http://vault:8200"
       Vault__TokenFile: "/run/vault/token"
       Vault__SecretPath: "platform/orders"
+      Vault__DatabaseRole: "orders-app"
+      Vault__DatabaseConnectionStringName: "orders-db"
+      Vault__DatabaseHost: "orders-db"
+      Vault__DatabasePort: "5432"
+      Vault__DatabaseName: "orders"
+      Vault__DatabaseRuntimeRole: "orders_runtime"
+      Vault__LeaseRenewalIntervalSeconds: "5"
     depends_on:
       vault-init:
         condition: service_completed_successfully
@@ -57,6 +76,13 @@ services:
       Vault__Address: "http://vault:8200"
       Vault__TokenFile: "/run/vault/token"
       Vault__SecretPath: "platform/inventory"
+      Vault__DatabaseRole: "inventory-app"
+      Vault__DatabaseConnectionStringName: "inventory-db"
+      Vault__DatabaseHost: "inventory-db"
+      Vault__DatabasePort: "5432"
+      Vault__DatabaseName: "inventory"
+      Vault__DatabaseRuntimeRole: "inventory_runtime"
+      Vault__LeaseRenewalIntervalSeconds: "5"
     depends_on:
       vault-init:
         condition: service_completed_successfully
@@ -71,6 +97,13 @@ services:
       Vault__Address: "http://vault:8200"
       Vault__TokenFile: "/run/vault/token"
       Vault__SecretPath: "platform/payments"
+      Vault__DatabaseRole: "payments-app"
+      Vault__DatabaseConnectionStringName: "payments-db"
+      Vault__DatabaseHost: "payments-db"
+      Vault__DatabasePort: "5432"
+      Vault__DatabaseName: "payments"
+      Vault__DatabaseRuntimeRole: "payments_runtime"
+      Vault__LeaseRenewalIntervalSeconds: "5"
     depends_on:
       vault-init:
         condition: service_completed_successfully
