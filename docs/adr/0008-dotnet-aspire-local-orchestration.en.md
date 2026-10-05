@@ -160,6 +160,12 @@ Aspire is the recommended development experience.
 
 Secure Docker Compose remains for CI, smoke testing, parity checks, running the platform without AppHost tooling and the full Grafana/Tempo/Prometheus stack.
 
+### Aspire CLI dependency
+
+The AppHost explicitly sets `AspireUseCliBundle=false`. With the current Aspire release, this keeps `dotnet run` functional through SDK-restored orchestration dependencies without making a separately installed Aspire CLI another prerequisite for a new contributor.
+
+The current SDK recommends moving to the CLI bundle in the future. This decision should be revisited when the ecosystem makes the bundle mandatory; until then, the repository optimizes for low-friction onboarding.
+
 ## Consequences
 
 ### Benefits
