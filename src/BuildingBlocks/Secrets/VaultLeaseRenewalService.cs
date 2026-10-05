@@ -49,11 +49,9 @@ internal sealed class VaultLeaseRenewalService(
             }
             catch (Exception exception)
             {
-                logger.LogCritical(
-                    exception,
-                    "Vault database credential lease renewal failed. Stopping the host to fail closed.");
-
-                throw;
+                throw new InvalidOperationException(
+                    "Vault database credential lease renewal failed. The host will stop to fail closed.",
+                    exception);
             }
         }
     }
@@ -74,9 +72,9 @@ internal sealed class VaultLeaseRenewalService(
         client.DefaultRequestHeaders.Remove("X-Vault-Token");
         client.DefaultRequestHeaders.Add("X-Vault-Token", token);
 
-        using var response = await client.PostAsJsonAsync(
+        using var response = await client.PostAsync(
             $"v1/sys/leases/renew/{leaseId}",
-            new VaultLeaseRenewalRequest(),
+            content: null,
             cancellationToken);
 
         response.EnsureSuccessStatusCode();
@@ -103,5 +101,4 @@ internal sealed class VaultLeaseRenewalService(
         return TimeSpan.FromSeconds(Math.Max(30, leaseDurationSeconds / 2));
     }
 
-    private sealed record VaultLeaseRenewalRequest;
 }
