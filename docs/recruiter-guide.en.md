@@ -243,3 +243,39 @@ Evidence:
 - [ADR-0010](./adr/0010-software-supply-chain.en.md)
 
 The repository demonstrates commit-pinned GitHub Actions, CodeQL, Trivy, SBOM, OpenSSF Scorecard, non-root containers, Kubernetes security contexts and provenance attestations for published images.
+
+
+## 14. Least-privilege migrations
+
+Evidence:
+
+- [DatabaseMigrator](../src/Platform/DatabaseMigrator/Program.cs)
+- [Orders migrations](../src/Services/Orders/Orders.Infrastructure/Migrations)
+- [Vault runtime/migration roles](../deploy/vault/vault-init.sh)
+- [PostgreSQL role split](../deploy/postgres/orders-init.sql)
+- [ADR-0011](./adr/0011-ef-migrations-vault-deployment-identity.en.md)
+
+Interview point: application runtime has no DDL. A one-shot migrator gets a short-lived dynamic Vault credential, applies EF Migrations and exits; runtime gets only DML.
+
+## 15. Architecture, contract and chaos testing
+
+Evidence:
+
+- [Architecture Tests](../tests/Architecture.Tests)
+- [Contract Compatibility Tests](../tests/Contracts.Compatibility.Tests)
+- [Chaos Tests](../tests/Chaos.Tests)
+
+These gates make architecture boundaries, event compatibility and network-failure behavior executable in CI.
+
+## 16. GitOps and canary
+
+Evidence:
+
+- [Argo CD Application](../deploy/gitops/argocd/orders-production.yaml)
+- [Argo Rollout](../deploy/gitops/orders-canary/rollout.yaml)
+- [Canary analysis](../deploy/gitops/orders-canary/analysis-template.yaml)
+- [PreSync migration Job](../deploy/gitops/orders-canary/migration-job.yaml)
+- [GitOps Promotion workflow](../.github/workflows/gitops-promote.yml)
+- [ADR-0012](./adr/0012-architecture-contract-chaos-gitops.en.md)
+
+The delivery story separates artifact build/signing from promotion: promotion creates a PR, Argo CD reconciles Git, migration runs before rollout, and Argo Rollouts promotes gradually behind automated analysis.
