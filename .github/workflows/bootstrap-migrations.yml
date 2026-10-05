@@ -1,0 +1,75 @@
+name: Bootstrap EF Migrations
+
+on:
+  push:
+    branches:
+      - feature/keycloak-ai-engineering-harness
+    paths:
+      - ".github/workflows/bootstrap-migrations.yml"
+      - "src/Services/**/DbContext*.cs"
+      - "src/Services/**/*.csproj"
+      - "Directory.Packages.props"
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    name: Generate initial EF migrations
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feature/keycloak-ai-engineering-harness
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Install EF tooling
+        run: dotnet tool install --global dotnet-ef --version 10.0.12
+
+      - name: Restore
+        run: dotnet restore DistributedCommerce.slnx
+
+      - name: Generate Orders migration
+        if: ${{ hashFiles('src/Services/Orders/Orders.Infrastructure/Migrations/*.cs') == '' }}
+        run: >
+          dotnet ef migrations add InitialCreate
+          --project src/Services/Orders/Orders.Infrastructure/Orders.Infrastructure.csproj
+          --context OrdersDbContext
+          --output-dir Migrations
+
+      - name: Generate Inventory migration
+        if: ${{ hashFiles('src/Services/Inventory/Inventory.Service/Migrations/*.cs') == '' }}
+        run: >
+          dotnet ef migrations add InitialCreate
+          --project src/Services/Inventory/Inventory.Service/Inventory.Service.csproj
+          --context InventoryDbContext
+          --output-dir Migrations
+
+      - name: Generate Payments migration
+        if: ${{ hashFiles('src/Services/Payments/Payments.Service/Migrations/*.cs') == '' }}
+        run: >
+          dotnet ef migrations add InitialCreate
+          --project src/Services/Payments/Payments.Service/Payments.Service.csproj
+          --context PaymentsDbContext
+          --output-dir Migrations
+
+      - name: Commit generated migrations
+        shell: bash
+        run: |
+          if git diff --quiet -- src/Services; then
+            echo "Migration files already exist; nothing to commit."
+            exit 0
+          fi
+
+          git config user.name "distributed-commerce-migrations"
+          git config user.email "distributed-commerce-migrations@users.noreply.github.com"
+          git add src/Services
+          git commit -m "Generate initial EF Core migrations"
+          git push origin HEAD:feature/keycloak-ai-engineering-harness
