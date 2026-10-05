@@ -189,11 +189,19 @@ The local setup uses a versioned importable realm so behavior is reproducible in
 
 ## Secrets management
 
-The secure profile uses HashiCorp Vault KV v2. Each workload receives an independent file-mounted token and a policy that can read only its own path. The `DistributedCommerce.Secrets` building block loads values before database and messaging composition.
+The secure profile uses two Vault mechanisms. KV v2 stores the remaining static demo secrets, while the Database Secrets Engine issues dynamic PostgreSQL credentials for Orders, Inventory and Payments.
+
+Each workload receives an independent file-mounted token. For database access, the token can only read `database/creds/<service>-app` and renew leases under the same prefix. Vault returns `username`, `password`, `lease_id`, TTL and `renewable`; the connection string is built only in memory.
+
+### Stable roles and ephemeral logins
+
+Each database has a stable `NOLOGIN` role (`orders_runtime`, `inventory_runtime`, `payments_runtime`). Vault creates an ephemeral login and grants membership only in that role. PostgreSQL sessions switch role through connection options, separating temporary identity from persistent authorization.
+
+The lease is renewed in the background. Renewal failure terminates the host so the orchestrator can force a new authentication and credential cycle.
 
 Locally, the root token exists only to bootstrap Vault in dev mode. Production should prefer platform authentication such as Kubernetes Auth, with short-lived tokens, TLS, auditing and rotation. AppRole is a fallback when native platform identity is unavailable.
 
-Service collaboration remains asynchronous through RabbitMQ; no synchronous service-to-service HTTP calls were introduced just to demonstrate OAuth. This preserves the existing architectural boundaries.
+Service collaboration remains asynchronous through RabbitMQ; no synchronous service-to-service HTTP calls were introduced just to demonstrate OAuth. PostgreSQL credential lifecycle is detailed in [ADR-0007](adr/0007-dynamic-postgresql-credentials.en.md). This preserves the existing architectural boundaries.
 
 ## Observability
 
