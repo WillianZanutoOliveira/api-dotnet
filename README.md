@@ -53,6 +53,7 @@ O objetivo é tornar visível, em um portfólio público, engenharia backend de 
 - PostgreSQL;
 - API Gateway com YARP e autenticação na borda;
 - gestão centralizada de segredos com HashiCorp Vault e policies por workload;
+- credenciais PostgreSQL dinâmicas com Database Secrets Engine, TTL, lease renewal e revogação;
 - traces e métricas com OpenTelemetry, Tempo, Prometheus e Grafana;
 - Docker e Docker Compose;
 - health endpoints preparados para Kubernetes;
@@ -287,9 +288,11 @@ Veja [ADR-0004](docs/adr/0004-identity-keycloak.md).
 
 ### Cofre de segredos
 
-O perfil seguro usa HashiCorp Vault KV v2. Cada serviço recebe um token próprio por arquivo montado e uma policy que permite leitura apenas do path correspondente. As credenciais efetivas de PostgreSQL e RabbitMQ são carregadas pelo building block `DistributedCommerce.Secrets` antes da composição das dependências.
+O perfil seguro usa HashiCorp Vault em duas camadas. RabbitMQ permanece no KV v2, enquanto PostgreSQL usa o Database Secrets Engine: Orders, Inventory e Payments recebem um login temporário exclusivo, com TTL e lease renovável. Cada workload recebe seu próprio token por arquivo montado e só pode ler/renovar os paths associados à sua identidade.
 
-Em produção, o modo dev/root token não é usado: a preferência é identidade de plataforma (por exemplo, Kubernetes Auth), tokens curtos, TLS, auditoria e rotação. Veja [gestão de segredos](docs/secrets-management.md) e [ADR-0006](docs/adr/0006-secrets-hashicorp-vault.md).
+O connection string PostgreSQL é montado apenas em memória. O ambiente do container mantém `ConnectionStrings__*-db` vazio, e o serviço encerra o host se não conseguir renovar o lease — comportamento fail closed.
+
+Em produção, o modo dev/root token não é usado: a preferência é identidade de plataforma (por exemplo, Kubernetes Auth), token curto, TLS, auditoria e uma identidade administrativa dedicada do Vault no PostgreSQL. Veja [gestão de segredos](docs/secrets-management.md), [ADR-0006](docs/adr/0006-secrets-hashicorp-vault.md) e [ADR-0007](docs/adr/0007-dynamic-postgresql-credentials.md).
 
 ---
 
@@ -332,7 +335,8 @@ O GitHub Actions valida toda mudança relevante com:
 10. build do container de Payments;
 11. build do container de Notifications;
 12. smoke test real via Gateway + Keycloak + Vault;
-13. workflow de segurança com CodeQL, Trivy e SBOM.
+13. verificação de credencial PostgreSQL dinâmica real, ausência de connection string efetivo no environment e renovação de lease;
+14. workflow de segurança com CodeQL, Trivy e SBOM.
 
 O Dependabot monitora dependências NuGet e GitHub Actions.
 
@@ -362,6 +366,7 @@ RabbitMQ e PostgreSQL são tratados como dependências de plataforma que, em pro
 - [ADR-0004 — Identidade e autorização com Keycloak](docs/adr/0004-identity-keycloak.md)
 - [ADR-0005 — Harness de engenharia assistida por IA](docs/adr/0005-ai-engineering-harness.md)
 - [ADR-0006 — Gestão centralizada de segredos com HashiCorp Vault](docs/adr/0006-secrets-hashicorp-vault.md)
+- [ADR-0007 — Credenciais PostgreSQL dinâmicas com Vault Database Secrets Engine](docs/adr/0007-dynamic-postgresql-credentials.md)
 
 ---
 
