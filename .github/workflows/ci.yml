@@ -68,18 +68,18 @@ jobs:
       - name: Validate Docker Compose
         run: |
           cp .env.example .env
-          docker compose config >/dev/null
+          docker compose -f docker-compose.yml -f docker-compose.vault.yml config >/dev/null
 
       - name: Gateway authentication and authorization smoke test
         run: |
           chmod +x scripts/auth-smoke.sh
-          docker compose up -d --build api-gateway
+          docker compose -f docker-compose.yml -f docker-compose.vault.yml up -d --build api-gateway
           ./scripts/auth-smoke.sh
 
       - name: Smoke stack logs
         if: failure()
-        run: docker compose logs --no-color keycloak api-gateway orders-api rabbitmq orders-db
+        run: docker compose -f docker-compose.yml -f docker-compose.vault.yml logs --no-color vault vault-init keycloak api-gateway orders-api rabbitmq orders-db
 
       - name: Stop smoke stack
         if: always()
-        run: docker compose down -v --remove-orphans
+        run: docker compose -f docker-compose.yml -f docker-compose.vault.yml down -v --remove-orphans
