@@ -1,7 +1,7 @@
 using System.Threading.RateLimiting;
+using DistributedCommerce.Security;
 using DistributedCommerce.ServiceDefaults;
 using Microsoft.AspNetCore.RateLimiting;
-using DistributedCommerce.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
