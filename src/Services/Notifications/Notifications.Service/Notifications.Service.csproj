@@ -6,6 +6,6 @@
     <ProjectReference Include="..\..\..\BuildingBlocks\Contracts\Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\Observability\Observability.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\Secrets\Secrets.csproj" />
-      <ProjectReference Include="..\..\..\BuildingBlocks\ServiceDefaults\ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\ServiceDefaults\ServiceDefaults.csproj" />
   </ItemGroup>
 </Project>
