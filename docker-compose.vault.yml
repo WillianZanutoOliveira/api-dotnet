@@ -28,6 +28,12 @@ services:
     depends_on:
       vault:
         condition: service_healthy
+      orders-db:
+        condition: service_healthy
+      inventory-db:
+        condition: service_healthy
+      payments-db:
+        condition: service_healthy
     volumes:
       - ./deploy/vault/vault-init.sh:/bootstrap/vault-init.sh:ro
       - vault-orders-token:/tokens/orders
