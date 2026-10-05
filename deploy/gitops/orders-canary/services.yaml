@@ -17,6 +17,7 @@ metadata:
 spec:
   selector:
     app: orders-api
+    rollout-role: stable
   ports:
     - name: http
       port: 8080
@@ -29,6 +30,7 @@ metadata:
 spec:
   selector:
     app: orders-api
+    rollout-role: canary
   ports:
     - name: http
       port: 8080
