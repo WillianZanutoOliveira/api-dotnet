@@ -48,6 +48,7 @@ Before changing code, read:
 - Security, Scorecard and release provenance workflows are human-governed.
 - Application containers must remain non-root.
 - Kubernetes examples must keep `runAsNonRoot`, `RuntimeDefault` seccomp, no privilege escalation and dropped Linux capabilities.
+- Preserve the scheduled performance baseline and its pass/fail thresholds unless a human-reviewed performance decision changes them.
 
 ## Change discipline
 
@@ -69,6 +70,7 @@ AI automation must not modify these files unless a human explicitly performs a s
 - .github/workflows/security.yml
 - .github/workflows/scorecard.yml
 - .github/workflows/release.yml
+- .github/workflows/performance.yml
 - .github/CODEOWNERS
 - SECURITY.md
 
