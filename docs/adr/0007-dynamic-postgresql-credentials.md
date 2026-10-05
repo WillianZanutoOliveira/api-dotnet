@@ -56,9 +56,9 @@ Cada banco possui uma role PostgreSQL sem login:
 
 O Vault cria o usuário temporário e concede membership apenas na role correspondente.
 
-A conexão inclui `Options=-c role=<runtime_role>`. Com isso, a sessão muda para a role de runtime, e os objetos criados durante o bootstrap do schema ficam associados à identidade estável de runtime em vez do usuário efêmero.
+A conexão inclui `Options=-c role=<runtime_role>`. Com isso, a sessão muda para a role estável de runtime enquanto o login efêmero continua sendo apenas a identidade temporária emitida pelo Vault.
 
-Isso evita acoplar ownership do schema ao nome aleatório de uma credencial dinâmica.
+A role de runtime não possui DDL. O ownership do schema e a criação de objetos ficam sob uma role estável de migration separada, conforme o [ADR-0011](0011-ef-migrations-vault-deployment-identity.md).
 
 ## TTL e renovação
 
@@ -128,23 +128,16 @@ Em produção:
 
 ## Migrações de schema
 
-O runtime não deve ser tratado como ferramenta de migração em uma plataforma real.
+A separação de migration e runtime deixou de ser apenas uma recomendação e passou a fazer parte da implementação.
 
-Neste projeto de portfólio, `EnsureCreatedAsync` é mantido para permitir uma demonstração autocontida. A role de runtime possui `CREATE` no schema para esse objetivo.
+Cada banco possui duas roles estáveis:
 
-Em produção, o desenho recomendado é:
+- `<service>_runtime` — DML necessário ao workload, sem `CREATE` no schema;
+- `<service>_migrator` — DDL necessário para aplicar migrations EF Core.
 
-```text
-Migration identity (CI/CD)
-        |
-        +--> DDL / migrations
+O Vault emite credenciais dinâmicas distintas para `<service>-app` e `<service>-migration`. Um processo one-shot `DatabaseMigrator` executa `MigrateAsync()` antes do workload iniciar. Os serviços não executam `EnsureCreatedAsync` nem migrations durante o próprio startup.
 
-Runtime dynamic identity
-        |
-        +--> DML estritamente necessário
-```
-
-Ou seja, a identidade dinâmica de runtime não deveria receber DDL quando um pipeline de migrations dedicado existir.
+A decisão completa, incluindo ownership, default privileges e GitOps/PreSync, está no [ADR-0011](0011-ef-migrations-vault-deployment-identity.md).
 
 ## Validação no CI
 
@@ -155,7 +148,11 @@ O pipeline seguro valida que:
 3. existe no PostgreSQL uma role dinâmica com prefixo gerado pelo Vault;
 4. `ConnectionStrings__orders-db` permanece vazio no ambiente do container de aplicação;
 5. o connection string efetivo existe somente na configuração em memória carregada do Vault;
-6. o log confirma pelo menos uma renovação do lease durante o smoke test.
+6. o log confirma pelo menos uma renovação do lease de runtime durante o smoke test;
+7. `__EFMigrationsHistory` comprova que o schema foi criado por EF Migrations;
+8. `orders_runtime` não possui `CREATE` no schema;
+9. `orders_migrator` possui DDL;
+10. existe uma identidade dinâmica Vault associada à role de migration.
 
 ## Consequências
 
@@ -174,7 +171,7 @@ O pipeline seguro valida que:
 - Vault passa a participar do caminho de bootstrap dos serviços;
 - renovação de lease precisa ser monitorada;
 - após `max_ttl`, é necessário obter uma nova credencial;
-- um desenho de produção precisa separar migrations de runtime;
+- migrations e runtime exigem identities, policies e lifecycle distintos;
 - disponibilidade, HA, unseal, backup e disaster recovery do Vault são responsabilidades de plataforma.
 
 ## Alternativas consideradas
