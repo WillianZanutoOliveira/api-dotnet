@@ -68,6 +68,9 @@ jobs:
       - name: Build Notifications image
         run: docker build -f src/Services/Notifications/Notifications.Service/Dockerfile -t distributed-commerce/notifications:ci .
 
+      - name: Build Database Migrator image
+        run: docker build -f src/Platform/DatabaseMigrator/Dockerfile -t distributed-commerce/database-migrator:ci .
+
       - name: Validate Docker Compose
         run: |
           cp .env.example .env
