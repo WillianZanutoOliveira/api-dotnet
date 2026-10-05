@@ -63,7 +63,7 @@ jobs:
 
       - name: Protect harness governance
         run: |
-          protected='^(AGENTS\.md|SECURITY\.md|\.github/CODEOWNERS|\.ai/engineering-constitution\.md|\.ai/prompts/engineer\.md|\.github/workflows/(ai-evolution|security|scorecard|release|performance)\.yml)
+          protected='^(AGENTS\.md|SECURITY\.md|\.github/CODEOWNERS|\.ai/engineering-constitution\.md|\.ai/prompts/engineer\.md|\.github/workflows/(ai-evolution|security|scorecard|release|performance|gitops-promote)\.yml)
           if git diff --name-only | grep -Eq "$protected"; then
             echo "The AI agent attempted to modify protected governance files." >&2
             git diff --name-only
