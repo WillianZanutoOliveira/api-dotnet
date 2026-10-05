@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Inventory.Service;
 
-public partial class Program
+public static partial class Program
 {
     public static async Task Main(string[] args)
     {
