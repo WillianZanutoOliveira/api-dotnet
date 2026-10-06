@@ -19,7 +19,7 @@
 ![Sonar](https://img.shields.io/badge/Clean%20Code-Sonar-126ED3?logo=sonarqubecloud&logoColor=white)
 ![AI Harness](https://img.shields.io/badge/AI%20Harness-Codex%20%2B%20GitHub%20Actions-111827)
 
-**[Architecture](docs/architecture.en.md) · [Local development](docs/local-development.en.md) · [5-minute Recruiter Walkthrough](docs/recruiter-guide.en.md) · [ADRs](docs/adr) · [Kubernetes](deploy/k8s/README.en.md) · [CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)**
+**[Architecture](docs/architecture.en.md) · [Local development](docs/local-development.en.md) · [Platform Technical Walkthrough](docs/technical-walkthrough.en.md) · [ADRs](docs/adr) · [Kubernetes](deploy/k8s/README.en.md) · [CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)**
 
 </div>
 
@@ -106,7 +106,7 @@ flowchart LR
     Notifications -. traces/metrics .-> OTel
 ```
 
-More detail: [Architecture documentation](docs/architecture.en.md) · [5-minute recruiter walkthrough](docs/recruiter-guide.en.md)
+More detail: [Architecture documentation](docs/architecture.en.md) · [platform technical walkthrough](docs/technical-walkthrough.en.md)
 
 ---
 
