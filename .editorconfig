@@ -47,3 +47,10 @@ dotnet_diagnostic.S6605.severity = warning
 [*.{json,yml,yaml,md}]
 indent_style = space
 indent_size = 2
+
+# EF Core generates block-scoped namespaces. Treat migration artifacts as generated
+# code so style analyzers do not rewrite or fail versioned migration output.
+[**/Migrations/*.cs]
+generated_code = true
+csharp_style_namespace_declarations = block_scoped:silent
+
