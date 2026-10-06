@@ -13,12 +13,23 @@ builder.Services
     .AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
+var rateLimitTokenLimit = builder.Configuration.GetValue("RateLimiting:TokenLimit", 60);
+var rateLimitTokensPerPeriod = builder.Configuration.GetValue("RateLimiting:TokensPerPeriod", 60);
+var rateLimitPeriodSeconds = builder.Configuration.GetValue("RateLimiting:PeriodSeconds", 60);
+
+if (rateLimitTokenLimit <= 0 ||
+    rateLimitTokensPerPeriod <= 0 ||
+    rateLimitPeriodSeconds <= 0)
+{
+    throw new InvalidOperationException("Rate limiting configuration must use positive values.");
+}
+
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.OnRejected = static (context, _) =>
     {
-        context.HttpContext.Response.Headers.RetryAfter = "60";
+        context.HttpContext.Response.Headers["Retry-After"] = "60";
         return ValueTask.CompletedTask;
     };
 
@@ -28,11 +39,11 @@ builder.Services.AddRateLimiter(options =>
                 context.User.FindFirst("sub")?.Value ??
                 context.Connection.RemoteIpAddress?.ToString() ??
                 "unknown",
-            factory: static _ => new TokenBucketRateLimiterOptions
+            factory: _ => new TokenBucketRateLimiterOptions
             {
-                TokenLimit = 60,
-                TokensPerPeriod = 60,
-                ReplenishmentPeriod = TimeSpan.FromMinutes(1),
+                TokenLimit = rateLimitTokenLimit,
+                TokensPerPeriod = rateLimitTokensPerPeriod,
+                ReplenishmentPeriod = TimeSpan.FromSeconds(rateLimitPeriodSeconds),
                 QueueLimit = 0,
                 AutoReplenishment = true
             }));
