@@ -27,12 +27,16 @@ Plataforma de referência de comércio distribuído, construída com foco em pr�
 
 O sistema modela um fluxo de checkout dividido entre serviços implantáveis de forma independente:
 
-1. A **Orders API** recebe o pedido e persiste o agregado.
-2. O pedido é publicado por meio de um **transactional bus outbox**.
-3. O **Inventory Service** consome o pedido, toma uma decisão idempotente de reserva e publica o resultado.
-4. O **Payments Service** reage a uma reserva bem-sucedida e autoriza ou rejeita o pagamento.
-5. **Orders** reage de forma assíncrona ao resultado final do negócio.
-6. O **Notifications Service** consome os resultados de pagamento de forma independente.
+1. O **Keycloak** autentica o usuário e emite o access token OIDC/JWT.
+2. O **YARP API Gateway** valida o token na borda, aplica rate limiting e encaminha a requisição autenticada.
+3. A **Orders API** valida novamente o JWT, deriva o cliente da claim `sub`, aplica autorização por recurso e persiste o agregado.
+4. O pedido é publicado por meio de um **transactional bus outbox**.
+5. O **Inventory Service** consome o pedido, toma uma decisão idempotente de reserva e publica o resultado.
+6. O **Payments Service** reage a uma reserva bem-sucedida e autoriza ou rejeita o pagamento.
+7. **Orders** reage de forma assíncrona ao resultado final do negócio.
+8. O **Notifications Service** consome os resultados de pagamento de forma independente.
+9. **HashiCorp Vault** fornece segredos e credenciais PostgreSQL dinâmicas separadas entre runtime e migration.
+10. **OpenTelemetry** envia traces e métricas para o stack de observabilidade.
 
 O projeto foca intencionalmente nas partes difíceis de sistemas distribuídos, em vez de trabalho de interface.
 
@@ -76,35 +80,113 @@ O objetivo é tornar visível, em um portfólio público, engenharia backend de 
 ## Arquitetura
 
 ```mermaid
-flowchart LR
-    Client[Cliente] --> Keycloak[Keycloak / OIDC]
-    Keycloak --> Gateway[YARP API Gateway]
-    Gateway --> Orders[Orders API]
+flowchart TB
+    Client[Cliente / Consumer]
 
-    Orders --> ODB[(Orders PostgreSQL)]
-    Orders -- OrderSubmitted --> Rabbit[(RabbitMQ)]
+    subgraph Identity["Identidade e acesso"]
+        Keycloak[Keycloak<br/>OIDC / OAuth 2.0]
+    end
 
-    Rabbit --> Inventory[Inventory Service]
-    Inventory --> IDB[(Inventory PostgreSQL)]
-    Inventory -- InventoryReserved / InventoryRejected --> Rabbit
+    subgraph Edge["Borda HTTP"]
+        Gateway[YARP API Gateway<br/>JWT validation + rate limiting]
+    end
 
-    Rabbit --> Payments[Payments Service]
-    Payments --> PDB[(Payments PostgreSQL)]
-    Payments -- PaymentAuthorized / PaymentFailed --> Rabbit
+    subgraph Services["Serviços de negócio"]
+        Orders[Orders API<br/>Clean Architecture]
+        Inventory[Inventory Service]
+        Payments[Payments Service]
+        Notifications[Notifications Service]
+    end
+
+    subgraph Messaging["Mensageria"]
+        Rabbit[(RabbitMQ<br/>MassTransit)]
+    end
+
+    subgraph Data["Database per service"]
+        ODB[(Orders PostgreSQL)]
+        IDB[(Inventory PostgreSQL)]
+        PDB[(Payments PostgreSQL)]
+    end
+
+    subgraph Security["Segredos e lifecycle do banco"]
+        Vault[HashiCorp Vault<br/>KV v2 + Database Secrets Engine]
+        Migrator[DatabaseMigrator<br/>EF Core Migrations]
+    end
+
+    subgraph Observability["Observabilidade"]
+        OTel[OpenTelemetry Collector]
+        Tempo[Tempo]
+        Prometheus[Prometheus]
+        Grafana[Grafana]
+    end
+
+    Client -->|"login"| Keycloak
+    Keycloak -->|"access token JWT"| Client
+    Client -->|"Bearer JWT"| Gateway
+    Gateway -->|"JWT validado"| Orders
+
+    Orders --> ODB
+    Orders -->|"OrderSubmitted"| Rabbit
+
+    Rabbit --> Inventory
+    Inventory --> IDB
+    Inventory -->|"InventoryReserved / InventoryRejected"| Rabbit
+
+    Rabbit --> Payments
+    Payments --> PDB
+    Payments -->|"PaymentAuthorized / PaymentFailed"| Rabbit
 
     Rabbit --> Orders
-    Rabbit --> Notifications[Notifications Service]
+    Rabbit --> Notifications
 
-    Vault[HashiCorp Vault] -. segredos .-> Orders
-    Vault -. segredos .-> Inventory
-    Vault -. segredos .-> Payments
-    Vault -. segredos .-> Notifications
+    Vault -. "runtime credentials" .-> Orders
+    Vault -. "runtime credentials" .-> Inventory
+    Vault -. "runtime credentials" .-> Payments
+    Vault -. "RabbitMQ secret" .-> Notifications
+    Vault -. "migration credential" .-> Migrator
 
-    Orders -. traces/métricas .-> OTel[OpenTelemetry]
-    Inventory -. traces/métricas .-> OTel
-    Payments -. traces/métricas .-> OTel
-    Notifications -. traces/métricas .-> OTel
+    Migrator -. "DDL / EF migrations" .-> ODB
+    Migrator -. "DDL / EF migrations" .-> IDB
+    Migrator -. "DDL / EF migrations" .-> PDB
+
+    Gateway -. "OTLP" .-> OTel
+    Orders -. "OTLP" .-> OTel
+    Inventory -. "OTLP" .-> OTel
+    Payments -. "OTLP" .-> OTel
+    Notifications -. "OTLP" .-> OTel
+
+    OTel --> Tempo
+    OTel --> Prometheus
+    Tempo --> Grafana
+    Prometheus --> Grafana
 ```
+
+### Fluxo de autenticação e autorização
+
+```text
+Cliente
+  |
+  | autentica
+  v
+Keycloak
+  |
+  | access token JWT
+  v
+YARP API Gateway
+  |
+  | valida issuer / audience / assinatura / expiração
+  | aplica rate limiting
+  v
+Orders API
+  |
+  | valida JWT novamente
+  | usa claim sub como CustomerId
+  | aplica RBAC + ownership do recurso
+  v
+Domínio / PostgreSQL
+```
+
+O Gateway não torna o serviço interno implicitamente confiável: **Orders valida o token novamente**. Essa defesa em profundidade evita depender exclusivamente da borda para autenticação e autorização.
 
 Mais detalhes: [documentação de arquitetura](docs/architecture.md) · [walkthrough técnico de 5 minutos](docs/recruiter-guide.md)
 
@@ -112,16 +194,21 @@ Mais detalhes: [documentação de arquitetura](docs/architecture.md) · [walkthr
 
 ## Limites dos serviços
 
-| Serviço | Responsabilidade | Persistência | Mensageria |
+| Componente | Responsabilidade | Persistência | Integração / Segurança |
 | --- | --- | --- | --- |
-| Orders API | ciclo de vida do pedido e API voltada ao cliente | PostgreSQL | publica + consome |
-| Inventory Service | decisão de reserva de estoque | PostgreSQL | consome + publica |
-| Payments Service | decisão de autorização de pagamento | PostgreSQL | consome + publica |
-| Notifications Service | reação independente de comunicação com cliente | demo stateless | consome |
+| Keycloak | identidade, autenticação OIDC/OAuth 2.0 e realm roles | dados internos do IdP | emite JWT para clientes |
+| YARP API Gateway | entrada HTTP, validação JWT, rate limiting e proxy reverso | stateless | encaminha apenas requisições autenticadas |
+| Orders API | ciclo de vida do pedido, autorização por recurso e API voltada ao cliente | PostgreSQL | publica + consome eventos |
+| Inventory Service | decisão idempotente de reserva de estoque | PostgreSQL | consome + publica eventos |
+| Payments Service | decisão de autorização de pagamento | PostgreSQL | consome + publica eventos |
+| Notifications Service | reação independente de comunicação com cliente | demo stateless | consome eventos |
+| RabbitMQ | transporte assíncrono entre bounded contexts | filas / exchanges | MassTransit, at-least-once |
+| HashiCorp Vault | secrets, policies e credenciais PostgreSQL dinâmicas | storage do Vault | token/policy por workload |
+| DatabaseMigrator | aplica EF Core Migrations antes do workload | usa o banco alvo | identidade Vault migration separada |
+| OpenTelemetry | coleta vendor-neutral de traces e métricas | backend externo | OTLP para Collector/Tempo/Prometheus |
 
-Cada serviço com estado possui seu próprio banco de dados. Nenhum serviço lê tabelas pertencentes a outro serviço.
+Cada serviço com estado possui seu próprio banco de dados. Nenhum serviço lê tabelas pertencentes a outro serviço. Keycloak e Vault são **componentes de plataforma**, não bounded contexts de negócio.
 
----
 
 ## Clean Architecture
 
@@ -175,32 +262,44 @@ Essa é uma escolha arquitetural deliberada de sistema distribuído.
 
 ---
 
-## Fluxo de eventos
+## Fluxo completo: identidade + pedido + eventos
 
 ```text
-POST /orders
-      |
-      v
-OrderSubmitted
-      |
-      v
-Inventory Service
-   /       \
-  v         v
-Reserved   Rejected
-  |          |
-  v          +------------------> Orders -> InventoryRejected
-Payments
- /    \
-v      v
-Paid  Failed
- |      |
- +------+-----------------------> Orders
- |
- +------------------------------> Notifications
+Cliente
+  |
+  +--> Keycloak ------------------------------+
+  |       |                                   |
+  |       +--> access token JWT               |
+  |                                           v
+  +--------------------------------------> YARP Gateway
+                                               |
+                                               v
+                                         POST /api/orders
+                                               |
+                                               v
+                                           Orders
+                                               |
+                                               v
+                                         OrderSubmitted
+                                               |
+                                               v
+                                      Inventory Service
+                                         /          \
+                                        v            v
+                                  Reserved        Rejected
+                                     |               |
+                                     v               +----> Orders -> InventoryRejected
+                                  Payments
+                                  /      \
+                                 v        v
+                              Paid      Failed
+                               |           |
+                               +-----------+---------> Orders
+                               |
+                               +---------------------> Notifications
 ```
 
----
+A autenticação é síncrona apenas na borda HTTP. A colaboração entre os bounded contexts de negócio permanece assíncrona por RabbitMQ.
 
 ## Executando localmente
 
