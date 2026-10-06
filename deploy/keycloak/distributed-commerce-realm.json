@@ -16,6 +16,15 @@
       }
     ]
   },
+  "scopeMappings": [
+    {
+      "client": "commerce-cli",
+      "roles": [
+        "customer",
+        "admin"
+      ]
+    }
+  ],
   "clients": [
     {
       "clientId": "distributed-commerce-api",
@@ -37,7 +46,7 @@
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": false,
-      "fullScopeAllowed": true,
+      "fullScopeAllowed": false,
       "protocolMappers": [
         {
           "name": "distributed-commerce-api-audience",
