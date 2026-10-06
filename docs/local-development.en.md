@@ -160,3 +160,22 @@ Orders also exposes in Development only:
 - `/openapi/v1.json` — OpenAPI contract.
 
 The Aspire topology test validates these endpoints automatically.
+
+
+## Local environment security
+
+Docker Compose binds published ports to `127.0.0.1` so PostgreSQL, RabbitMQ, Keycloak, Vault and observability endpoints are not accidentally exposed to the developer LAN.
+
+Local HTTP is a Development-only fixture. Outside `Development`, application identity configuration requires HTTPS Keycloak metadata.
+
+The secure profile adds read-only root filesystems, dropped capabilities and `no-new-privileges` for .NET workloads.
+
+After the stack is running, adversarial checks can be executed with:
+
+```bash
+bash scripts/auth-smoke.sh
+bash scripts/security-smoke.sh
+bash scripts/security-config-check.sh
+```
+
+The full active scan runs through the disposable [DAST workflow](../.github/workflows/dast.yml).
