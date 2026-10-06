@@ -30,6 +30,40 @@ public sealed class OrderRepositoryTests
     }
 
     [Test]
+    public async Task Repository_scopes_order_reads_by_customer()
+    {
+        var options = new DbContextOptionsBuilder<OrdersDbContext>()
+            .UseNpgsql(_postgres.GetConnectionString())
+            .Options;
+
+        await using var dbContext = new OrdersDbContext(options);
+        await dbContext.Database.MigrateAsync();
+
+        var repository = new OrderRepository(dbContext);
+        var order = Order.Create("customer-a", 25m);
+
+        await repository.AddAsync(order, CancellationToken.None);
+        await dbContext.SaveChangesAsync(CancellationToken.None);
+        dbContext.ChangeTracker.Clear();
+
+        var owned = await repository.GetByIdForCustomerAsync(
+            order.Id,
+            "customer-a",
+            CancellationToken.None);
+
+        var otherCustomer = await repository.GetByIdForCustomerAsync(
+            order.Id,
+            "customer-b",
+            CancellationToken.None);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(owned, Is.Not.Null);
+            Assert.That(otherCustomer, Is.Null);
+        });
+    }
+
+    [Test]
     public async Task Repository_persists_and_reads_order_from_real_postgresql()
     {
         var options = new DbContextOptionsBuilder<OrdersDbContext>()
