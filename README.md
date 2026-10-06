@@ -12,7 +12,7 @@
 ![RabbitMQ](https://img.shields.io/badge/RabbitMQ-MassTransit-FF6600?logo=rabbitmq&logoColor=white)
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-OTLP--ready-7C3AED)
 ![Aspire](https://img.shields.io/badge/Local%20Dev-Aspire%2013.6-512BD4?logo=dotnet&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-4%20Images-2496ED?logo=docker&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-6%20Images-2496ED?logo=docker&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-Examples-326CE5?logo=kubernetes&logoColor=white)
 ![Keycloak](https://img.shields.io/badge/Identity-Keycloak-4D4D4D?logo=keycloak&logoColor=white)
 ![Vault](https://img.shields.io/badge/Secrets-Vault-FFEC6E?logo=vault&logoColor=black)
@@ -518,15 +518,20 @@ O GitHub Actions valida toda mudança relevante com:
 4. testes automatizados;
 5. coleta de cobertura de código;
 6. quality gate Sonar/.editorconfig/dotnet format;
-7. testes de integração com Testcontainers;
-8. build do container de API Gateway;
-9. build do container de Orders;
-10. build do container de Inventory;
-11. build do container de Payments;
-12. build do container de Notifications;
-13. smoke test real via Gateway + Keycloak + Vault;
-14. verificação de credencial PostgreSQL dinâmica real, ausência de connection string efetivo no environment e renovação de lease;
-15. workflow de segurança com CodeQL, Trivy e SBOM.
+7. testes de integração com PostgreSQL real via Testcontainers;
+8. Architecture Tests, Contract Compatibility Tests e fault injection com Toxiproxy;
+9. build do container de API Gateway;
+10. build do container de Orders;
+11. build do container de Inventory;
+12. build do container de Payments;
+13. build do container de Notifications;
+14. build do DatabaseMigrator;
+15. validação do Compose seguro;
+16. smoke test real Keycloak → YARP → Orders;
+17. execução de EF Core Migrations com identidade Vault separada;
+18. prova de least privilege: runtime sem DDL e migrator com CREATE;
+19. verificação de credencial PostgreSQL dinâmica, connection string ausente do environment e lease renewal;
+20. workflow de segurança com CodeQL, Trivy e SBOM.
 
 O Dependabot monitora dependências NuGet e GitHub Actions.
 
