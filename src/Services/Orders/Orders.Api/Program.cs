@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json.Serialization;
 using DistributedCommerce.Secrets;
 using DistributedCommerce.Security;
 using DistributedCommerce.ServiceDefaults;
@@ -28,6 +29,11 @@ builder.AddPlatformWebSecurity();
 builder.Services.AddPlatformIdentity(builder.Configuration, builder.Environment);
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.MaxDepth = 16;
+    options.SerializerOptions.UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow;
+});
 
 builder.Services.AddMassTransit(x =>
 {
