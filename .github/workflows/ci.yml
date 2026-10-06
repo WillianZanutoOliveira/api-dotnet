@@ -86,6 +86,9 @@ jobs:
           docker compose -f docker-compose.yml -f docker-compose.vault.yml up -d --build api-gateway
           ./scripts/auth-smoke.sh
 
+      - name: Adversarial API security smoke test
+        run: bash scripts/security-smoke.sh
+
       - name: Verify migration ownership and runtime least privilege
         run: |
           migration_count="$(
