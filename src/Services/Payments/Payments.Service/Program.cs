@@ -14,11 +14,14 @@ public static partial class Program
         builder.Services.AddVaultLeaseRenewal();
 
         var connectionString = builder.Configuration.GetConnectionString("payments-db")
-            ?? "Host=localhost;Port=5434;Database=payments;Username=postgres;Password=postgres";
+            ?? throw new InvalidOperationException(
+                "Database connection must be supplied through the configured secret boundary.");
 
         var rabbitHost = builder.Configuration["RabbitMq:Host"] ?? "localhost";
-        var rabbitUser = builder.Configuration["RabbitMq:Username"] ?? "guest";
-        var rabbitPassword = builder.Configuration["RabbitMq:Password"] ?? "guest";
+        var rabbitUser = builder.Configuration["RabbitMq:Username"]
+            ?? throw new InvalidOperationException("RabbitMQ username is required.");
+        var rabbitPassword = builder.Configuration["RabbitMq:Password"]
+            ?? throw new InvalidOperationException("RabbitMQ password is required.");
 
         builder.Services.AddDbContext<PaymentsDbContext>(options =>
             options.UseNpgsql(connectionString));
