@@ -5,8 +5,10 @@ using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddPlatformIdentity(builder.Configuration);
+builder.Services.AddPlatformIdentity(builder.Configuration, builder.Environment);
 builder.AddPlatformServiceDefaults("api-gateway");
+builder.AddPlatformWebSecurity();
+builder.Services.AddProblemDetails();
 builder.Services
     .AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
@@ -14,6 +16,11 @@ builder.Services
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = static (context, _) =>
+    {
+        context.HttpContext.Response.Headers.RetryAfter = "60";
+        return ValueTask.CompletedTask;
+    };
 
     options.AddPolicy("authenticated-api", context =>
         RateLimitPartition.GetTokenBucketLimiter(
@@ -33,6 +40,8 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
+app.UseExceptionHandler();
+app.UsePlatformWebSecurity();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
