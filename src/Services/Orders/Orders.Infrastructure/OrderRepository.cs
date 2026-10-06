@@ -15,4 +15,14 @@ public sealed class OrderRepository(OrdersDbContext dbContext) : IOrderRepositor
         dbContext.Orders
             .AsNoTracking()
             .SingleOrDefaultAsync(order => order.Id == orderId, cancellationToken);
+
+    public Task<Order?> GetByIdForCustomerAsync(
+        Guid orderId,
+        string customerId,
+        CancellationToken cancellationToken) =>
+        dbContext.Orders
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                order => order.Id == orderId && order.CustomerId == customerId,
+                cancellationToken);
 }
