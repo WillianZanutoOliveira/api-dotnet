@@ -310,3 +310,73 @@ Evidências:
 - [ADR-0012](./adr/0012-architecture-contract-chaos-gitops.md)
 
 A história técnica é: build e assinatura do artefato são separados da promoção; promoção gera PR; Argo CD reconcilia Git; migration precede o rollout; Argo Rollouts promove gradualmente com análise automática.
+
+
+## 17. Pentest readiness e threat boundaries
+
+Evidências:
+
+- [Security posture](./security-posture.md)
+- [Keycloak realm](../deploy/keycloak/distributed-commerce-realm.json)
+- [JWT security building block](../src/BuildingBlocks/Security/KeycloakAuthenticationExtensions.cs)
+- [HTTP hardening](../src/BuildingBlocks/ServiceDefaults/PlatformWebSecurityExtensions.cs)
+- [Security invariant checks](../scripts/security-config-check.sh)
+- [Adversarial API smoke](../scripts/security-smoke.sh)
+- [Authenticated ZAP DAST](../.github/workflows/dast.yml)
+
+O caminho externo é deliberadamente tratado como não confiável:
+
+```text
+Cliente
+  |
+  v
+Keycloak
+  |
+  | JWT RS256
+  v
+YARP Gateway
+  |
+  | issuer/audience/lifetime + rate limiting
+  v
+Orders
+  |
+  | JWT validado novamente
+  | CustomerId = sub
+  | query OrderId + CustomerId
+  v
+PostgreSQL / RabbitMQ
+```
+
+Pontos que um avaliador de segurança consegue inspecionar diretamente:
+
+- `fullScopeAllowed=false` nos clients do realm local, com scope mapping explícito apenas para `customer` e `admin`;
+- brute-force protection e access token curto no Keycloak local;
+- metadata Keycloak precisa ser HTTPS fora de Development;
+- token adulterado retorna 401;
+- acesso cross-customer retorna 404 e não revela existência do pedido;
+- payload não pode injetar `CustomerId`;
+- JSON desconhecido é rejeitado;
+- body/headers/request-line são limitados;
+- TRACE/CONNECT são bloqueados;
+- security headers são adicionados;
+- rate limiter retorna 429 sob burst;
+- appsettings não possuem credenciais default;
+- containers .NET são non-root;
+- Vault separa runtime DML de migration DDL;
+- ZAP executa active scan autenticado contra uma stack descartável.
+
+A meta não é afirmar “invulnerável”; é manter **zero findings High/Critical conhecidos nos gates automatizados** e transformar findings reais em regression tests.
+
+## 18. Como demonstrar a arquitetura em uma entrevista
+
+Uma sequência curta e forte:
+
+1. mostrar o diagrama principal com **Keycloak → YARP → Orders → RabbitMQ**;
+2. explicar por que Orders valida JWT novamente;
+3. mostrar Vault emitindo credenciais dinâmicas de runtime e migration;
+4. mostrar o `DatabaseMigrator` one-shot e a ausência de DDL na aplicação;
+5. abrir os architecture/contract/chaos tests;
+6. mostrar CI, Security e DAST como gates separados;
+7. finalizar com GitOps/Argo Rollouts e promoção por PR.
+
+Isso demonstra arquitetura distribuída, segurança, plataforma, qualidade e operação como um único desenho coerente.
