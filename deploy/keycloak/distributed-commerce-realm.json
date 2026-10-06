@@ -127,5 +127,22 @@
       "email": "demo-admin@local.test",
       "requiredActions": []
     }
-  ]
+  ],
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "minimumQuickLoginWaitSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxFailureWaitSeconds": 900,
+  "maxDeltaTimeSeconds": 43200,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "rememberMe": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "defaultSignatureAlgorithm": "RS256"
 }
