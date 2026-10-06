@@ -58,6 +58,13 @@ services:
       - ./deploy/postgres/payments-init.sql:/docker-entrypoint-initdb.d/10-runtime-role.sql:ro
 
   orders-migrator:
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
     environment:
       ConnectionStrings__orders-db: ""
       Vault__Address: "http://vault:8200"
@@ -75,6 +82,13 @@ services:
       - vault-orders-migrator-token:/run/vault:ro
 
   inventory-migrator:
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
     environment:
       ConnectionStrings__inventory-db: ""
       Vault__Address: "http://vault:8200"
@@ -92,6 +106,13 @@ services:
       - vault-inventory-migrator-token:/run/vault:ro
 
   payments-migrator:
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
     environment:
       ConnectionStrings__payments-db: ""
       Vault__Address: "http://vault:8200"
@@ -108,7 +129,23 @@ services:
     volumes:
       - vault-payments-migrator-token:/run/vault:ro
 
+  api-gateway:
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+
   orders-api:
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
     environment:
       ConnectionStrings__orders-db: ""
       RabbitMq__Username: ""
@@ -132,6 +169,13 @@ services:
       - vault-orders-token:/run/vault:ro
 
   inventory-service:
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
     environment:
       ConnectionStrings__inventory-db: ""
       RabbitMq__Username: ""
@@ -155,6 +199,13 @@ services:
       - vault-inventory-token:/run/vault:ro
 
   payments-service:
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
     environment:
       ConnectionStrings__payments-db: ""
       RabbitMq__Username: ""
@@ -178,6 +229,13 @@ services:
       - vault-payments-token:/run/vault:ro
 
   notifications-service:
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
     environment:
       RabbitMq__Username: ""
       RabbitMq__Password: ""
