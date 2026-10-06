@@ -17,6 +17,7 @@ public static partial class Program
         var rabbitPassword = builder.Configuration["RabbitMq:Password"] ?? "guest";
 
         builder.AddPlatformServiceDefaults("notifications-service");
+        builder.AddPlatformWebSecurity();
 
         builder.Services.AddMassTransit(x =>
         {
@@ -40,6 +41,8 @@ public static partial class Program
         });
 
         var app = builder.Build();
+
+        app.UsePlatformWebSecurity();
         app.MapPlatformDefaultEndpoints();
         await app.RunAsync();
     }
