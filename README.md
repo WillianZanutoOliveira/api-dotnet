@@ -68,7 +68,7 @@ O objetivo é tornar visível, em um portfólio público, engenharia backend de 
 - baseline semanal de performance com k6 e thresholds de SLO técnico;
 - testes automatizados, cobertura e integração com PostgreSQL real via Testcontainers;
 - Clean Code com SonarAnalyzer, .editorconfig e dotnet format;
-- DevSecOps com CodeQL, Trivy, SBOM e OpenSSF Scorecard;
+- DevSecOps com CodeQL, Gitleaks, Trivy, OWASP ZAP DAST, SBOM e OpenSSF Scorecard;
 - GitHub Actions pinadas por commit SHA e releases OCI no GHCR com provenance attestations via OIDC/Sigstore;
 - autenticação OpenID Connect, validação JWT, RBAC e autorização por recurso com Keycloak;
 - OpenAPI nativo do ASP.NET Core validado no teste de topologia;
@@ -401,6 +401,27 @@ O CustomerId do pedido é derivado da claim sub; ele não é mais confiado ao pa
 O realm local versionado existe para demonstração e smoke tests. O fluxo de senha direta é apenas um fixture local; clientes interativos reais devem usar Authorization Code + PKCE.
 
 Veja [ADR-0004](docs/adr/0004-identity-keycloak.md).
+
+### Pentest readiness
+
+A segurança é tratada como **propriedade verificável**, não como promessa de “zero vulnerabilidades”.
+
+O projeto aplica:
+
+- JWT assinado RS256, issuer/audience/lifetime e HTTPS obrigatório para Keycloak fora de Development;
+- query de Orders escopada por `OrderId + CustomerId`, evitando exposição de recursos de outro cliente;
+- rate limiting por identidade;
+- limites de body/headers/request line;
+- JSON estrito, propriedades desconhecidas rejeitadas e inputs de negócio limitados;
+- headers HTTP de segurança e remoção do header `Server`;
+- containers non-root e hardening do perfil Compose seguro;
+- CodeQL + Gitleaks + Trivy vuln/secret/misconfig;
+- **OWASP ZAP API Scan ativo autenticado** contra uma stack descartável Keycloak → YARP → Orders;
+- smoke adversarial de JWT inválido, TRACE, mass assignment, oversized body e rate limiting.
+
+O objetivo do gate é manter **zero findings High/Critical conhecidos**, sem esconder finding para “deixar o CI verde”. Um pentest manual independente continua recomendado antes de produção real.
+
+Veja [postura de segurança e pentest readiness](docs/security-posture.md).
 
 ### Cofre de segredos
 
