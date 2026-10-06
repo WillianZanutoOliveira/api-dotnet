@@ -9,6 +9,8 @@ jq -e '
   and .accessTokenLifespan <= 300
   and .defaultSignatureAlgorithm == "RS256"
   and .registrationAllowed == false
+  and all(.clients[]; (.fullScopeAllowed // false) == false)
+  and any(.scopeMappings[]?; .client == "commerce-cli" and (.roles | index("customer")) != null and (.roles | index("admin")) != null)
 ' "$realm" >/dev/null
 
 if grep -R --include='appsettings*.json' -nE   '(Password=postgres|"Username"[[:space:]]*:[[:space:]]*"guest"|"Password"[[:space:]]*:[[:space:]]*"guest")'   src/Services; then
