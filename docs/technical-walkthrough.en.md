@@ -217,7 +217,7 @@ Useful evidence:
 - [Security pipeline](../.github/workflows/security.yml)
 - [Code-quality guide](./code-quality.en.md)
 
-The build treats warnings as errors and CI verifies formatting/analyzers. A separate pipeline runs CodeQL, Trivy and generates an SPDX SBOM.
+The build treats warnings as errors and CI verifies formatting/analyzers. Security gates add CodeQL, Gitleaks, Trivy vulnerability/secret/misconfiguration scanning, SBOM generation and authenticated OWASP ZAP DAST.
 
 ## 11. Architecture decisions
 
@@ -310,3 +310,57 @@ Evidence:
 - [ADR-0012](./adr/0012-architecture-contract-chaos-gitops.en.md)
 
 The delivery story separates artifact build/signing from promotion: promotion creates a PR, Argo CD reconciles Git, migration runs before rollout, and Argo Rollouts promotes gradually behind automated analysis.
+
+
+## 17. Pentest readiness and threat boundaries
+
+Evidence:
+
+- [Security posture](./security-posture.en.md)
+- [Keycloak realm](../deploy/keycloak/distributed-commerce-realm.json)
+- [JWT security building block](../src/BuildingBlocks/Security/KeycloakAuthenticationExtensions.cs)
+- [HTTP hardening](../src/BuildingBlocks/ServiceDefaults/PlatformWebSecurityExtensions.cs)
+- [Security invariant checks](../scripts/security-config-check.sh)
+- [Adversarial API smoke](../scripts/security-smoke.sh)
+- [Authenticated ZAP DAST](../.github/workflows/dast.yml)
+
+The external path is deliberately treated as untrusted:
+
+```text
+Client
+  |
+  v
+Keycloak
+  |
+  | RS256 JWT
+  v
+YARP Gateway
+  |
+  | issuer/audience/lifetime + rate limiting
+  v
+Orders
+  |
+  | JWT validated again
+  | CustomerId = sub
+  | OrderId + CustomerId query
+  v
+PostgreSQL / RabbitMQ
+```
+
+Inspectable controls include scoped Keycloak clients, brute-force protection, production HTTPS enforcement, tampered-token rejection, non-disclosing cross-customer access, strict JSON/input limits, blocked TRACE/CONNECT, security headers, rate limiting, no default app credentials, non-root containers, Vault DML/DDL identity separation and authenticated OWASP ZAP active scanning.
+
+The target is not an “invulnerable” claim. The target is **zero known High/Critical findings in enforced automated gates**, plus independent manual penetration testing before real production exposure.
+
+## 18. How to demonstrate the architecture in an interview
+
+A concise sequence:
+
+1. show the main **Keycloak → YARP → Orders → RabbitMQ** diagram;
+2. explain why Orders validates the JWT again;
+3. show Vault runtime/migration dynamic identities;
+4. show the one-shot DatabaseMigrator and DML-only runtime;
+5. open architecture/contract/chaos tests;
+6. show CI, Security and DAST as separate gates;
+7. finish with reviewable GitOps promotion and Argo Rollouts canary delivery.
+
+This connects distributed architecture, security, platform engineering, quality and operations into one coherent story.
