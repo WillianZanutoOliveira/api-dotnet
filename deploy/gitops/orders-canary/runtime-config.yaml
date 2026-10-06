@@ -12,8 +12,6 @@ data:
   Keycloak__RequireHttpsMetadata: "true"
   OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.observability.svc.cluster.local:4317
   Vault__Address: https://vault.vault.svc.cluster.local:8200
-  Vault__TokenFile: /vault/secrets/token
-  Vault__SecretPath: platform/orders
   Vault__DatabaseRole: orders-app
   Vault__DatabaseConnectionStringName: orders-db
   Vault__DatabaseHost: orders-db.platform.svc.cluster.local
