@@ -58,7 +58,7 @@ other_customer_status="$(
   curl -sS -o /dev/null -w '%{http_code}'     "$API_BASE/orders/$order_id"     -H "Authorization: Bearer $other_customer_token"
 )"
 
-test "$other_customer_status" = "403"
+test "$other_customer_status" = "404"
 
 curl -fsS   "$API_BASE/orders/$order_id"   -H "Authorization: Bearer $admin_token" >/dev/null
 
