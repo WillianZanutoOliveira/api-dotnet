@@ -112,16 +112,21 @@ More detail: [Architecture documentation](docs/architecture.en.md) · [5-minute 
 
 ## Service boundaries
 
-| Service | Responsibility | Persistence | Messaging |
+| Component | Responsibility | Persistence | Integration / Security |
 | --- | --- | --- | --- |
-| Orders API | order lifecycle and customer-facing API | PostgreSQL | publish + consume |
-| Inventory Service | inventory reservation decision | PostgreSQL | consume + publish |
-| Payments Service | payment authorization decision | PostgreSQL | consume + publish |
-| Notifications Service | independent customer communication reaction | stateless demo | consume |
+| Keycloak | identity, OIDC/OAuth 2.0 authentication and realm roles | IdP internal state | issues JWTs to clients |
+| YARP API Gateway | HTTP ingress, JWT validation, rate limiting and reverse proxy | stateless | forwards authenticated requests |
+| Orders API | order lifecycle, resource authorization and customer-facing API | PostgreSQL | publishes + consumes events |
+| Inventory Service | idempotent stock reservation decision | PostgreSQL | consumes + publishes events |
+| Payments Service | payment authorization decision | PostgreSQL | consumes + publishes events |
+| Notifications Service | independent customer communication reaction | stateless demo | consumes events |
+| RabbitMQ | asynchronous transport between bounded contexts | queues / exchanges | MassTransit, at-least-once |
+| HashiCorp Vault | secrets, policies and dynamic PostgreSQL credentials | Vault storage | token/policy per workload |
+| DatabaseMigrator | applies EF Core Migrations before workloads | target database | separate Vault migration identity |
+| OpenTelemetry | vendor-neutral trace and metric collection | external backend | OTLP to Collector/Tempo/Prometheus |
 
-Each stateful service owns its own database. No service reads another service's tables.
+Every stateful service owns its database. No service reads another service's tables. Keycloak and Vault are **platform components**, not business bounded contexts.
 
----
 
 ## Clean Architecture
 
@@ -175,32 +180,44 @@ This is a deliberate distributed-system trade-off.
 
 ---
 
-## Event flow
+## End-to-end flow: identity + order + events
 
 ```text
-POST /orders
-      |
-      v
-OrderSubmitted
-      |
-      v
-Inventory Service
-   /       \
-  v         v
-Reserved   Rejected
-  |          |
-  v          +------------------> Orders -> InventoryRejected
-Payments
- /    \
-v      v
-Paid  Failed
- |      |
- +------+-----------------------> Orders
- |
- +------------------------------> Notifications
+Client
+  |
+  +--> Keycloak ------------------------------+
+  |       |                                   |
+  |       +--> JWT access token               |
+  |                                           v
+  +--------------------------------------> YARP Gateway
+                                               |
+                                               v
+                                         POST /api/orders
+                                               |
+                                               v
+                                           Orders
+                                               |
+                                               v
+                                         OrderSubmitted
+                                               |
+                                               v
+                                      Inventory Service
+                                         /          \
+                                        v            v
+                                  Reserved        Rejected
+                                     |               |
+                                     v               +----> Orders -> InventoryRejected
+                                  Payments
+                                  /      \
+                                 v        v
+                              Paid      Failed
+                               |           |
+                               +-----------+---------> Orders
+                               |
+                               +---------------------> Notifications
 ```
 
----
+Authentication is synchronous only at the HTTP edge. Collaboration between business bounded contexts remains asynchronous through RabbitMQ.
 
 ## Running locally
 
