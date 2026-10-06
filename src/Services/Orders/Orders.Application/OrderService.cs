@@ -67,6 +67,25 @@ public sealed class OrderService(
         return order is null ? null : Map(order);
     }
 
+    public async Task<OrderView?> GetForCustomerAsync(
+        Guid orderId,
+        string customerId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(customerId) ||
+            customerId.Length > OrderInputLimits.MaximumCustomerIdLength)
+        {
+            return null;
+        }
+
+        var order = await repository.GetByIdForCustomerAsync(
+            orderId,
+            customerId,
+            cancellationToken);
+
+        return order is null ? null : Map(order);
+    }
+
     private static OrderView Map(Order order) =>
         new(
             order.Id,
