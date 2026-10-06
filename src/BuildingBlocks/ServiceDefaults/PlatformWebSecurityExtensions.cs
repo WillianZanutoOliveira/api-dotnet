@@ -44,7 +44,7 @@ public static class PlatformWebSecurityExtensions
                 string.Equals(context.Request.Method, "CONNECT", StringComparison.OrdinalIgnoreCase))
             {
                 context.Response.StatusCode = StatusCodes.Status405MethodNotAllowed;
-                context.Response.Headers.Allow = "GET, HEAD, POST, OPTIONS";
+                context.Response.Headers["Allow"] = "GET, HEAD, POST, OPTIONS";
                 return;
             }
 
