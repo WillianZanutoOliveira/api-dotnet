@@ -24,6 +24,7 @@ public static partial class Program
             options.UseNpgsql(connectionString));
 
         builder.AddPlatformServiceDefaults("payments-service");
+        builder.AddPlatformWebSecurity();
 
         builder.Services.AddMassTransit(x =>
         {
@@ -54,6 +55,8 @@ public static partial class Program
         });
 
         var app = builder.Build();
+
+        app.UsePlatformWebSecurity();
 
         app.MapPlatformDefaultEndpoints();
         await app.RunAsync();
