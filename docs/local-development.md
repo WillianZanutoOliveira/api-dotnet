@@ -178,3 +178,22 @@ Orders também publica, somente em Development:
 - `/openapi/v1.json` — contrato OpenAPI.
 
 O teste de topologia Aspire valida automaticamente esses endpoints.
+
+
+## Segurança do ambiente local
+
+No Docker Compose, portas publicadas ficam vinculadas a `127.0.0.1`; o objetivo é impedir exposição acidental de PostgreSQL, RabbitMQ, Keycloak, Vault e observabilidade para a LAN do desenvolvedor.
+
+O HTTP local existe apenas como fixture de desenvolvimento. Fora de `Development`, a aplicação exige metadata Keycloak por HTTPS.
+
+O perfil seguro adiciona root filesystem read-only, drop de capabilities e `no-new-privileges` aos workloads .NET.
+
+Para executar os checks adversariais após subir a stack:
+
+```bash
+bash scripts/auth-smoke.sh
+bash scripts/security-smoke.sh
+bash scripts/security-config-check.sh
+```
+
+O scan DAST completo roda pelo workflow [DAST](../.github/workflows/dast.yml), em ambiente descartável.
