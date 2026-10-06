@@ -1,0 +1,6 @@
+services:
+  api-gateway:
+    environment:
+      RateLimiting__TokenLimit: "10000"
+      RateLimiting__TokensPerPeriod: "10000"
+      RateLimiting__PeriodSeconds: "60"
