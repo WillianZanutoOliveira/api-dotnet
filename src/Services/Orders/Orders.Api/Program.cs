@@ -12,11 +12,14 @@ await builder.Configuration.AddVaultSecretsAsync();
 builder.Services.AddVaultLeaseRenewal();
 
 var ordersConnection = builder.Configuration.GetConnectionString("orders-db")
-    ?? "Host=localhost;Port=5432;Database=orders;Username=postgres;Password=postgres";
+    ?? throw new InvalidOperationException(
+        "Orders database connection must be supplied through the configured secret boundary.");
 
 var rabbitHost = builder.Configuration["RabbitMq:Host"] ?? "localhost";
-var rabbitUser = builder.Configuration["RabbitMq:Username"] ?? "guest";
-var rabbitPassword = builder.Configuration["RabbitMq:Password"] ?? "guest";
+var rabbitUser = builder.Configuration["RabbitMq:Username"]
+    ?? throw new InvalidOperationException("RabbitMQ username is required.");
+var rabbitPassword = builder.Configuration["RabbitMq:Password"]
+    ?? throw new InvalidOperationException("RabbitMQ password is required.");
 
 builder.Services.AddOrdersInfrastructure(ordersConnection);
 builder.Services.AddScoped<OrderService>();
