@@ -272,6 +272,41 @@ O realm local é versionado e importável, deixando autenticação/autorização
 
 Veja [ADR-0004](adr/0004-identity-keycloak.md).
 
+## Hardening HTTP e pentest readiness
+
+A borda HTTP e Orders compartilham um baseline de segurança no `ServiceDefaults`:
+
+- Kestrel sem header `Server`;
+- body máximo de 1 MiB;
+- limites de request line e headers;
+- timeout de request headers;
+- HSTS fora de Development;
+- `nosniff`, `DENY`, CSP e Permissions Policy;
+- TRACE/CONNECT bloqueados;
+- responses autenticadas com `Cache-Control: no-store`.
+
+Orders usa JSON estrito: propriedades não mapeadas são rejeitadas, profundidade é limitada e coleções/números de negócio possuem limites explícitos.
+
+Para BOLA, a leitura de customer não faz `GetById` global seguido de comparação em memória. A query é escopada no banco por:
+
+```text
+OrderId + CustomerId
+```
+
+Admin mantém um caminho explícito transversal. Um customer consultando um pedido de outro customer recebe `404`, evitando resource-existence disclosure.
+
+Além dos testes funcionais, o pipeline executa:
+
+- security invariants;
+- smoke adversarial HTTP/JWT;
+- CodeQL;
+- Gitleaks;
+- Trivy vulnerability/secret/IaC;
+- OWASP ZAP API Scan autenticado;
+- SBOM.
+
+Veja [postura de segurança](security-posture.md).
+
 ## Gestão de segredos
 
 O perfil seguro usa HashiCorp Vault com dois mecanismos. KV v2 armazena os segredos estáticos restantes do demo, enquanto o Database Secrets Engine emite credenciais PostgreSQL dinâmicas para Orders, Inventory e Payments.
