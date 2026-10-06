@@ -19,7 +19,7 @@
 ![Sonar](https://img.shields.io/badge/Clean%20Code-Sonar-126ED3?logo=sonarqubecloud&logoColor=white)
 ![AI Harness](https://img.shields.io/badge/AI%20Harness-Codex%20%2B%20GitHub%20Actions-111827)
 
-**[Arquitetura](docs/architecture.md) · [Desenvolvimento local](docs/local-development.md) · [Walkthrough técnico da plataforma](docs/technical-walkthrough.md) · [ADRs](docs/adr) · [Kubernetes](deploy/k8s) · [CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)**
+**[Arquitetura](docs/architecture.md) · [Segurança / Pentest readiness](docs/security-posture.md) · [Desenvolvimento local](docs/local-development.md) · [Walkthrough técnico da plataforma](docs/technical-walkthrough.md) · [ADRs](docs/adr) · [Kubernetes](deploy/k8s) · [CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)**
 
 </div>
 
