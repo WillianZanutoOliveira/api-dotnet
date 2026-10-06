@@ -23,38 +23,99 @@ O projeto foi desenhado intencionalmente em torno de preocupações arquiteturai
 
 ```mermaid
 flowchart TB
-    User[Cliente / Consumidor]
-    User --> Keycloak[Keycloak / OIDC]
-    Keycloak --> Gateway[YARP API Gateway]
-    Gateway --> Orders[Orders API]
+    Client[Cliente / Consumidor]
 
-    Orders --> Rabbit[(RabbitMQ)]
-    Rabbit --> Inventory[Inventory Service]
-    Rabbit --> Payments[Payments Service]
-    Rabbit --> Notifications[Notifications Service]
+    subgraph Identity["Identidade"]
+        Keycloak[Keycloak<br/>OIDC / OAuth 2.0<br/>Realm roles]
+    end
+
+    subgraph Edge["Borda HTTP"]
+        Gateway[YARP API Gateway<br/>JWT validation<br/>rate limiting]
+    end
+
+    subgraph Business["Bounded contexts"]
+        Orders[Orders API]
+        Inventory[Inventory Service]
+        Payments[Payments Service]
+        Notifications[Notifications Service]
+    end
+
+    subgraph Messaging["Mensageria assíncrona"]
+        Rabbit[(RabbitMQ<br/>MassTransit)]
+    end
+
+    subgraph Persistence["Database per service"]
+        OrdersDb[(Orders PostgreSQL)]
+        InventoryDb[(Inventory PostgreSQL)]
+        PaymentsDb[(Payments PostgreSQL)]
+    end
+
+    subgraph Secrets["Segredos e schema lifecycle"]
+        Vault[HashiCorp Vault<br/>KV v2 + Database Secrets Engine]
+        Migrator[DatabaseMigrator<br/>EF Core Migrations]
+    end
+
+    subgraph Telemetry["Observabilidade"]
+        Collector[OpenTelemetry Collector]
+        Tempo[Tempo]
+        Prometheus[Prometheus]
+        Grafana[Grafana]
+    end
+
+    Client -->|"login"| Keycloak
+    Keycloak -->|"JWT access token"| Client
+    Client -->|"Bearer JWT"| Gateway
+    Gateway -->|"JWT validado"| Orders
+
+    Orders --> OrdersDb
+    Orders -->|"OrderSubmitted"| Rabbit
+    Rabbit --> Inventory
+    Inventory --> InventoryDb
+    Inventory -->|"InventoryReserved / InventoryRejected"| Rabbit
+    Rabbit --> Payments
+    Payments --> PaymentsDb
+    Payments -->|"PaymentAuthorized / PaymentFailed"| Rabbit
     Rabbit --> Orders
+    Rabbit --> Notifications
 
-    Orders --> OrdersDb[(Orders DB)]
-    Inventory --> InventoryDb[(Inventory DB)]
-    Payments --> PaymentsDb[(Payments DB)]
+    Vault -. "runtime credentials" .-> Orders
+    Vault -. "runtime credentials" .-> Inventory
+    Vault -. "runtime credentials" .-> Payments
+    Vault -. "RabbitMQ secret" .-> Notifications
+    Vault -. "migration credential" .-> Migrator
 
-    Vault[HashiCorp Vault] -. credenciais .-> Orders
-    Vault -. credenciais .-> Inventory
-    Vault -. credenciais .-> Payments
-    Vault -. credenciais .-> Notifications
+    Migrator -. "DDL / migrations" .-> OrdersDb
+    Migrator -. "DDL / migrations" .-> InventoryDb
+    Migrator -. "DDL / migrations" .-> PaymentsDb
 
-    Orders -. OTLP .-> Collector[OpenTelemetry Collector]
-    Inventory -. OTLP .-> Collector
-    Payments -. OTLP .-> Collector
-    Notifications -. OTLP .-> Collector
-    Gateway -. OTLP .-> Collector
-    Collector --> Tempo[Tempo]
-    Collector --> Prometheus[Prometheus]
-    Prometheus --> Grafana[Grafana]
+    Gateway -. "OTLP" .-> Collector
+    Orders -. "OTLP" .-> Collector
+    Inventory -. "OTLP" .-> Collector
+    Payments -. "OTLP" .-> Collector
+    Notifications -. "OTLP" .-> Collector
+
+    Collector --> Tempo
+    Collector --> Prometheus
     Tempo --> Grafana
+    Prometheus --> Grafana
 ```
 
+O caminho síncrono termina em Orders. Depois do comando HTTP autenticado, a colaboração de negócio entre bounded contexts permanece assíncrona por RabbitMQ.
+
+
 ## Limites
+
+### Keycloak
+
+Keycloak é o Identity Provider OpenID Connect/OAuth 2.0 da plataforma. Ele autentica usuários, emite access tokens JWT e publica realm roles utilizadas pelas policies de autorização.
+
+Keycloak é um componente de identidade da plataforma, não um bounded context de negócio.
+
+### YARP API Gateway
+
+O Gateway é a entrada HTTP pública. Ele valida JWT na borda, aplica rate limiting por identidade e encaminha chamadas autenticadas para Orders.
+
+O Gateway não é a única barreira de segurança: Orders valida o JWT novamente.
 
 ### Orders
 
@@ -179,13 +240,37 @@ O design prioriza:
 
 ## Identidade e autorização
 
-Keycloak atua como Identity Provider OpenID Connect. O YARP API Gateway valida o token na borda e a Orders API valida novamente o JWT, evitando confiar apenas na camada de proxy.
+Keycloak atua como Identity Provider OpenID Connect/OAuth 2.0. O fluxo HTTP autenticado é:
 
-A API valida JWT com emissor, audiência, assinatura e tempo de vida. A identidade de negócio é derivada da claim sub, e roles do realm são usadas em policies de autorização.
+```text
+Cliente
+  |
+  +--> Keycloak
+  |      |
+  |      +--> access token JWT
+  |
+  +--> YARP API Gateway
+           |
+           | issuer / audience / signature / lifetime
+           | rate limiting por sub
+           v
+        Orders API
+           |
+           | valida JWT novamente
+           | CustomerId = claim sub
+           | realm roles -> policies
+           | ownership do recurso
+           v
+        caso de uso
+```
 
-A autorização não termina no endpoint: consultas de pedido verificam ownership do recurso, com bypass explícito apenas para a role admin.
+A validação acontece em duas camadas de propósito: Gateway e Orders. Isso fornece defesa em profundidade e evita que o serviço confie implicitamente no proxy.
 
-A configuração local usa um realm importável e versionado para tornar o comportamento reproduzível em Docker Compose e CI.
+A identidade de negócio é derivada da claim `sub`; `CustomerId` não é aceito como autoridade no payload. Realm roles alimentam RBAC, e consultas de pedido verificam object-level authorization. Apenas a role administrativa possui bypass explícito de ownership.
+
+O realm local é versionado e importável, deixando autenticação/autorização reproduzíveis em Aspire, Docker Compose e CI. O password grant usado pelo smoke local é somente fixture de desenvolvimento; clientes interativos de produção devem usar Authorization Code + PKCE.
+
+Veja [ADR-0004](adr/0004-identity-keycloak.md).
 
 ## Gestão de segredos
 
@@ -219,6 +304,7 @@ Aspire AppHost
 │   └── Payments PostgreSQL
 │
 └── Local .NET projects
+    ├── DatabaseMigrator (one-shot)
     ├── YARP API Gateway
     ├── Orders API
     ├── Inventory
@@ -231,7 +317,7 @@ A escolha de executar os workloads .NET como projetos locais melhora o inner loo
 A simplificação é somente operacional. O AppHost preserva:
 
 - autenticação Keycloak;
-- boundary YARP → Orders;
+- fluxo Keycloak → YARP → Orders com dupla validação JWT;
 - RabbitMQ;
 - Vault KV v2;
 - Vault Database Secrets Engine;
