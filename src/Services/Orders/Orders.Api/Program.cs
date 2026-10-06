@@ -135,13 +135,28 @@ static Dictionary<string, string[]> Validate(CreateOrderRequest request)
 {
     var errors = new Dictionary<string, string[]>();
 
-    if (request.Items is null || request.Items.Count == 0)
-        errors["items"] = ["At least one item is required."];
+    if (request.Items is null ||
+        request.Items.Count == 0 ||
+        request.Items.Count > OrderInputLimits.MaximumItems)
+    {
+        errors["items"] =
+        [
+            $"Orders must contain between 1 and {OrderInputLimits.MaximumItems} items."
+        ];
+    }
     else if (request.Items.Any(item =>
                  string.IsNullOrWhiteSpace(item.Sku) ||
+                 item.Sku.Trim().Length > OrderInputLimits.MaximumSkuLength ||
                  item.Quantity <= 0 ||
-                 item.UnitPrice <= 0))
-        errors["items"] = ["Every item requires a SKU, positive quantity and positive unit price."];
+                 item.Quantity > OrderInputLimits.MaximumQuantityPerItem ||
+                 item.UnitPrice <= 0 ||
+                 item.UnitPrice > OrderInputLimits.MaximumUnitPrice))
+    {
+        errors["items"] =
+        [
+            "Every item must use a bounded SKU, quantity and unit price."
+        ];
+    }
 
     return errors;
 }
