@@ -35,7 +35,8 @@
       "publicClient": false,
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": false
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false
     },
     {
       "clientId": "commerce-cli",
