@@ -122,17 +122,16 @@ app.MapGet("/orders/{id:guid}", async (
     OrderService service,
     CancellationToken cancellationToken) =>
 {
-    var order = await service.GetAsync(id, cancellationToken);
-    if (order is null)
-        return Results.NotFound();
-
-    var subject = user.FindFirst("sub")?.Value;
     var isAdmin = user.IsInRole("admin");
+    var subject = user.FindFirst("sub")?.Value;
 
-    if (!isAdmin && !string.Equals(order.CustomerId, subject, StringComparison.Ordinal))
-        return Results.Forbid();
+    var order = isAdmin
+        ? await service.GetAsync(id, cancellationToken)
+        : await service.GetForCustomerAsync(id, subject ?? string.Empty, cancellationToken);
 
-    return Results.Ok(order);
+    return order is null
+        ? Results.NotFound()
+        : Results.Ok(order);
 }).RequireAuthorization(SecurityPolicies.OrdersRead);
 
 await app.RunAsync();
