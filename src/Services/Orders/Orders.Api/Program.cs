@@ -21,7 +21,8 @@ var rabbitPassword = builder.Configuration["RabbitMq:Password"] ?? "guest";
 builder.Services.AddOrdersInfrastructure(ordersConnection);
 builder.Services.AddScoped<OrderService>();
 builder.AddPlatformServiceDefaults("orders-api");
-builder.Services.AddPlatformIdentity(builder.Configuration);
+builder.AddPlatformWebSecurity();
+builder.Services.AddPlatformIdentity(builder.Configuration, builder.Environment);
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 
@@ -60,6 +61,7 @@ builder.Services.AddMassTransit(x =>
 var app = builder.Build();
 
 app.UseExceptionHandler();
+app.UsePlatformWebSecurity();
 app.UseAuthentication();
 app.UseAuthorization();
 
