@@ -163,9 +163,20 @@ Evidências úteis:
 - [Smoke test de autenticação/autorização](../scripts/auth-smoke.sh)
 - [ADR de identidade](./adr/0004-identity-keycloak.md)
 
-O projeto demonstra validação JWT, audience/issuer checks, RBAC e object-level authorization. O CustomerId não é confiado ao payload: ele vem do sub autenticado.
+O projeto demonstra validação JWT, audience/issuer checks, RBAC e object-level authorization. O CustomerId não é confiado ao payload: ele vem do `sub` autenticado.
 
-A camada de segredos usa HashiCorp Vault com token/policy por workload. RabbitMQ fica no KV v2; PostgreSQL usa credenciais dinâmicas. Orders, Inventory e Payments recebem um login temporário com TTL + lease renovável, enquanto as permissões ficam em roles PostgreSQL `NOLOGIN` estáveis.
+A autenticação HTTP é intencionalmente validada em duas camadas:
+
+```text
+Cliente
+  -> Keycloak
+  -> YARP Gateway
+  -> Orders
+```
+
+Keycloak autentica e emite o JWT. O YARP valida o token e aplica rate limiting; Orders valida novamente issuer/audience/signature/lifetime e executa a autorização de recurso.
+
+A camada de segredos usa HashiCorp Vault com token/policy por workload. RabbitMQ fica no KV v2; PostgreSQL usa credenciais dinâmicas. Orders, Inventory e Payments recebem logins temporários de runtime com TTL + lease renovável, enquanto migrations usam identidades Vault separadas com DDL e lifecycle curto.
 
 Evidências:
 
@@ -231,6 +242,10 @@ Os ADRs documentam trade-offs, e não apenas detalhes de implementação:
 - [ADR-0006 — Gestão centralizada de segredos com HashiCorp Vault](./adr/0006-secrets-hashicorp-vault.md)
 - [ADR-0007 — Credenciais PostgreSQL dinâmicas com Vault Database Secrets Engine](./adr/0007-dynamic-postgresql-credentials.md)
 - [ADR-0008 — .NET Aspire como orquestrador de desenvolvimento local](./adr/0008-dotnet-aspire-local-orchestration.md)
+- [ADR-0009 — Service Defaults, health model, OpenAPI e proteção de borda](./adr/0009-service-defaults-api-resilience.md)
+- [ADR-0010 — Software supply chain e releases atestados](./adr/0010-software-supply-chain.md)
+- [ADR-0011 — EF Core Migrations com identidade Vault de deployment separada](./adr/0011-ef-migrations-vault-deployment-identity.md)
+- [ADR-0012 — Guardrails arquiteturais, contratos, fault injection e progressive delivery](./adr/0012-architecture-contract-chaos-gitops.md)
 
 ## O que este repositório pretende demonstrar
 
