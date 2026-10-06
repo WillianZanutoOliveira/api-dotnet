@@ -55,12 +55,21 @@ spec:
             runAsUser: 1654
             runAsGroup: 1654
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
+          env:
+            - name: Vault__TokenFile
+              value: /vault/secrets/token
+            - name: Vault__SecretPath
+              value: platform/orders
           envFrom:
             - configMapRef:
                 name: orders-runtime-config
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           ports:
             - name: http
               containerPort: 8080
@@ -83,3 +92,7 @@ spec:
             limits:
               cpu: "1"
               memory: 512Mi
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
