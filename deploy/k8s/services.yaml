@@ -28,10 +28,14 @@ spec:
         - name: orders-api
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
           image: ghcr.io/example/distributed-commerce/orders:latest
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           ports:
             - containerPort: 8080
           envFrom:
@@ -56,6 +60,11 @@ spec:
             limits:
               cpu: "1"
               memory: 512Mi
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+
 ---
 apiVersion: v1
 kind: Service
@@ -90,10 +99,14 @@ spec:
         - name: inventory-service
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
           image: ghcr.io/example/distributed-commerce/inventory:latest
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           envFrom:
             - configMapRef:
                 name: distributed-commerce-config
@@ -114,6 +127,11 @@ spec:
             limits:
               cpu: "1"
               memory: 512Mi
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -137,10 +155,14 @@ spec:
         - name: payments-service
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
           image: ghcr.io/example/distributed-commerce/payments:latest
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           envFrom:
             - configMapRef:
                 name: distributed-commerce-config
@@ -161,6 +183,11 @@ spec:
             limits:
               cpu: "1"
               memory: 512Mi
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -184,10 +211,14 @@ spec:
         - name: notifications-service
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
           image: ghcr.io/example/distributed-commerce/notifications:latest
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           envFrom:
             - configMapRef:
                 name: distributed-commerce-config
@@ -208,3 +239,7 @@ spec:
             limits:
               cpu: 500m
               memory: 256Mi
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
