@@ -272,6 +272,33 @@ The local realm is versioned/importable so authentication and authorization rema
 
 See [ADR-0004](adr/0004-identity-keycloak.en.md).
 
+## HTTP hardening and pentest readiness
+
+The HTTP edge and Orders share a security baseline through `ServiceDefaults`:
+
+- Kestrel `Server` header disabled;
+- 1 MiB body limit;
+- request-line/header bounds;
+- request-header timeout;
+- HSTS outside Development;
+- `nosniff`, frame denial, CSP and Permissions Policy;
+- TRACE/CONNECT rejected;
+- authenticated responses marked `no-store`.
+
+Orders uses strict JSON handling: unmapped properties are rejected, depth is bounded and business collections/numeric values have explicit limits.
+
+For BOLA, customer reads are not implemented as a global `GetById` followed by an in-memory comparison. PostgreSQL queries are scoped by:
+
+```text
+OrderId + CustomerId
+```
+
+Admin retains an explicit cross-customer path. A customer querying another customer's order receives `404`, avoiding resource-existence disclosure.
+
+The delivery pipeline adds static security invariants, adversarial HTTP/JWT smoke tests, CodeQL, Gitleaks, Trivy vulnerability/secret/IaC scanning, authenticated OWASP ZAP API DAST and SBOM generation.
+
+See [security posture](security-posture.en.md).
+
 ## Secrets management
 
 The secure profile uses two Vault mechanisms. KV v2 stores the remaining static demo secrets, while the Database Secrets Engine issues dynamic PostgreSQL credentials for Orders, Inventory and Payments.
