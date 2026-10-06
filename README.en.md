@@ -64,7 +64,7 @@ The goal is to make advanced backend engineering visible in a public portfolio:
 - weekly k6 performance baseline with technical-SLO thresholds;
 - automated tests, coverage and real PostgreSQL integration through Testcontainers;
 - Clean Code enforcement with SonarAnalyzer, .editorconfig and dotnet format;
-- DevSecOps gates with CodeQL, Trivy, SBOM generation and OpenSSF Scorecard;
+- DevSecOps gates with CodeQL, Gitleaks, Trivy, authenticated OWASP ZAP DAST, SBOM generation and OpenSSF Scorecard;
 - commit-pinned GitHub Actions and GHCR OCI releases with OIDC/Sigstore provenance attestations;
 - OpenID Connect authentication, JWT validation, RBAC and resource-level authorization with Keycloak;
 - native ASP.NET Core OpenAPI validated by the Aspire topology test;
@@ -319,6 +319,16 @@ Order CustomerId is derived from the token sub claim instead of trusting the req
 The versioned local realm exists for demos and smoke tests. Direct password grant is only a local fixture; real interactive clients should use Authorization Code + PKCE.
 
 See [ADR-0004](docs/adr/0004-identity-keycloak.en.md).
+
+### Pentest readiness
+
+Security is treated as a **verifiable property**, not a promise of “zero vulnerabilities”.
+
+The project enforces signed RS256 JWTs, production HTTPS for identity metadata, customer-scoped database reads, identity rate limiting, bounded HTTP/JSON/business inputs, security headers, non-root runtime hardening, CodeQL/Gitleaks/Trivy and an **authenticated OWASP ZAP active API scan** against a disposable Keycloak → YARP → Orders stack.
+
+The gate target is **no known High/Critical findings** without hiding findings merely to make CI pass. Independent manual penetration testing is still recommended before real production exposure.
+
+See [security posture and pentest readiness](docs/security-posture.en.md).
 
 ### Secrets vault
 
