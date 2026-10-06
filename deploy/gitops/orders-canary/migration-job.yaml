@@ -32,6 +32,7 @@ spec:
             runAsUser: 1654
             runAsGroup: 1654
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
@@ -56,6 +57,9 @@ spec:
               value: orders
             - name: Vault__DatabaseRuntimeRole
               value: orders_migrator
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           resources:
             requests:
               cpu: 50m
@@ -63,3 +67,7 @@ spec:
             limits:
               cpu: 500m
               memory: 256Mi
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
