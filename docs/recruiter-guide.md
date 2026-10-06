@@ -6,21 +6,45 @@ Esta página é um **guia de inspeção de 5 minutos** para recrutadores, engenh
 
 O objetivo é facilitar a verificação das evidências de engenharia sem exigir a leitura de todo o código.
 
-## 1. Limites entre serviços
+## 1. Identidade, borda e limites dos serviços
 
-Comece pela arquitetura de alto nível:
+Comece pela visão macro:
 
-- [Visão geral da arquitetura](./architecture.md)
-- [Contratos dos eventos de integração](../src/BuildingBlocks/Contracts/IntegrationEvents.cs)
+- [Arquitetura](./architecture.md)
+- [Building block de segurança](../src/BuildingBlocks/Security/KeycloakAuthenticationExtensions.cs)
+- [Realm Keycloak versionado](../deploy/keycloak/distributed-commerce-realm.json)
+- [YARP Gateway](../src/Gateway/ApiGateway/Program.cs)
+- [Contratos de eventos](../src/BuildingBlocks/Contracts/IntegrationEvents.cs)
 
-A plataforma é dividida em quatro serviços implantáveis de forma independente:
+Fluxo de entrada:
+
+```text
+Cliente
+  |
+  v
+Keycloak
+  | JWT
+  v
+YARP API Gateway
+  | JWT validado + rate limiting
+  v
+Orders API
+  | JWT validado novamente + object authorization
+  v
+caso de uso
+```
+
+Depois do comando HTTP, a colaboração entre os quatro serviços de negócio permanece assíncrona:
 
 - Orders
 - Inventory
 - Payments
 - Notifications
 
-Serviços com estado possuem seu próprio banco PostgreSQL. Nenhum serviço lê tabelas de outro serviço.
+Os serviços com estado possuem banco PostgreSQL próprio e não leem tabelas de outro bounded context.
+
+O ponto arquitetural importante é que **Keycloak e YARP fazem parte da plataforma de identidade/borda**, enquanto Orders, Inventory, Payments e Notifications são bounded contexts de negócio.
+
 
 ## 2. Clean Architecture
 
@@ -47,30 +71,37 @@ A camada de domínio não depende de ASP.NET Core, EF Core, RabbitMQ nem MassTra
 
 ## 3. RabbitMQ e colaboração orientada a eventos
 
-O fluxo assíncrono principal é:
+O fluxo completo começa autenticado na borda e depois muda para colaboração assíncrona:
 
 ```text
-POST /orders
-   ↓
-OrderSubmitted
-   ↓
-Inventory
-   ↓
-InventoryReserved / InventoryRejected
-   ↓
-Payments
-   ↓
-PaymentAuthorized / PaymentFailed
-   ↓
-Orders + Notifications
+Keycloak -> YARP -> POST /orders
+                      |
+                      v
+                 OrderSubmitted
+                      |
+                      v
+                  Inventory
+                      |
+          InventoryReserved / Rejected
+                      |
+                      v
+                   Payments
+                      |
+          PaymentAuthorized / Failed
+                      |
+                      v
+             Orders + Notifications
 ```
 
 Arquivos úteis:
 
+- [Keycloak security setup](../src/BuildingBlocks/Security/KeycloakAuthenticationExtensions.cs)
+- [YARP Gateway](../src/Gateway/ApiGateway/Program.cs)
 - [Orders API e configuração do MassTransit](../src/Services/Orders/Orders.Api/Program.cs)
 - [Consumer de Inventory](../src/Services/Inventory/Inventory.Service/OrderSubmittedConsumer.cs)
 - [Consumer de Payments](../src/Services/Payments/Payments.Service/InventoryReservedConsumer.cs)
 - [Consumers de Notifications](../src/Services/Notifications/Notifications.Service/PaymentConsumers.cs)
+
 
 ## 4. Confiabilidade: Outbox, Inbox e idempotência
 
