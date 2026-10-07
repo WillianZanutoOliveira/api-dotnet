@@ -6,9 +6,13 @@ namespace DistributedCommerce.AppHost.Tests;
 
 public sealed class LocalTopologyTests
 {
-    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromMinutes(3);
+    private static readonly TimeSpan BuildTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan StartupTimeout = TimeSpan.FromMinutes(6);
+    private static readonly TimeSpan ResourceTimeout = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(30);
 
     [Test]
+    [Category("Topology")]
     public async Task AppHost_Starts_Orders_And_Gateway()
     {
         Environment.SetEnvironmentVariable(
@@ -18,35 +22,40 @@ public sealed class LocalTopologyTests
             "ASPIRE_VERSION_CHECK_DISABLED",
             "true");
 
-        using var cancellation = new CancellationTokenSource(DefaultTimeout);
+        using var buildCancellation = new CancellationTokenSource(BuildTimeout);
 
         var appHost = await DistributedApplicationTestingBuilder
             .CreateAsync<Projects.DistributedCommerce_AppHost>(
-                cancellationToken: cancellation.Token);
+                cancellationToken: buildCancellation.Token);
 
         await using var app = await appHost
-            .BuildAsync(cancellation.Token)
-            .WaitAsync(DefaultTimeout, cancellation.Token);
+            .BuildAsync(buildCancellation.Token)
+            .WaitAsync(BuildTimeout, buildCancellation.Token);
+
+        using var startupCancellation = new CancellationTokenSource(StartupTimeout);
 
         await app
-            .StartAsync(cancellation.Token)
-            .WaitAsync(DefaultTimeout, cancellation.Token);
+            .StartAsync(startupCancellation.Token)
+            .WaitAsync(StartupTimeout, startupCancellation.Token);
+
+        using var resourceCancellation = new CancellationTokenSource(ResourceTimeout);
 
         await app.ResourceNotifications
-            .WaitForResourceHealthyAsync("orders-api", cancellation.Token)
-            .WaitAsync(DefaultTimeout, cancellation.Token);
+            .WaitForResourceHealthyAsync("orders-api", resourceCancellation.Token)
+            .WaitAsync(ResourceTimeout, resourceCancellation.Token);
 
         await app.ResourceNotifications
-            .WaitForResourceHealthyAsync("api-gateway", cancellation.Token)
-            .WaitAsync(DefaultTimeout, cancellation.Token);
+            .WaitForResourceHealthyAsync("api-gateway", resourceCancellation.Token)
+            .WaitAsync(ResourceTimeout, resourceCancellation.Token);
 
+        using var requestCancellation = new CancellationTokenSource(RequestTimeout);
         using var gatewayClient = app.CreateHttpClient("api-gateway", "http");
-        using var healthResponse = await gatewayClient.GetAsync("/health", cancellation.Token);
-        using var aliveResponse = await gatewayClient.GetAsync("/alive", cancellation.Token);
+        using var healthResponse = await gatewayClient.GetAsync("/health", requestCancellation.Token);
+        using var aliveResponse = await gatewayClient.GetAsync("/alive", requestCancellation.Token);
 
         using var ordersClient = app.CreateHttpClient("orders-api", "http");
-        using var openApiResponse = await ordersClient.GetAsync("/openapi/v1.json", cancellation.Token);
-        var openApiDocument = await openApiResponse.Content.ReadAsStringAsync(cancellation.Token);
+        using var openApiResponse = await ordersClient.GetAsync("/openapi/v1.json", requestCancellation.Token);
+        var openApiDocument = await openApiResponse.Content.ReadAsStringAsync(requestCancellation.Token);
 
         Assert.Multiple(() =>
         {
