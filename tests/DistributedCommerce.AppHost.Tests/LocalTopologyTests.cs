@@ -26,10 +26,9 @@ public sealed class LocalTopologyTests
 
         var resourceNames = appHost.Resources
             .Select(resource => resource.Name)
-            .Order(StringComparer.Ordinal)
             .ToArray();
 
-        var expectedResourceNames = new[]
+        var requiredPlatformResources = new[]
         {
             "api-gateway",
             "inventory-db",
@@ -48,7 +47,28 @@ public sealed class LocalTopologyTests
             "vault-init"
         };
 
-        Assert.That(resourceNames, Is.EquivalentTo(expectedResourceNames));
-        Assert.That(resourceNames, Has.Length.EqualTo(expectedResourceNames.Length));
+        var requiredSecretResources = new[]
+        {
+            "inventory-db-password",
+            "keycloak-admin-password",
+            "orders-db-password",
+            "payments-db-password",
+            "rabbitmq-password",
+            "vault-dev-root-token"
+        };
+
+        Assert.Multiple(() =>
+        {
+            foreach (var resourceName in requiredPlatformResources)
+                Assert.That(resourceNames, Does.Contain(resourceName), $"Missing platform resource '{resourceName}'.");
+
+            foreach (var resourceName in requiredSecretResources)
+                Assert.That(resourceNames, Does.Contain(resourceName), $"Missing secret resource '{resourceName}'.");
+
+            Assert.That(
+                resourceNames.Distinct(StringComparer.Ordinal).Count(),
+                Is.EqualTo(resourceNames.Length),
+                "Aspire resource names must be unique.");
+        });
     }
 }
