@@ -53,6 +53,7 @@ curl -fsS -D "$headers_file" -o /dev/null \
 grep -qi '^X-Content-Type-Options: nosniff' "$headers_file"
 grep -qi '^X-Frame-Options: DENY' "$headers_file"
 grep -qi '^Referrer-Policy: no-referrer' "$headers_file"
+grep -qi '^Cross-Origin-Resource-Policy: same-origin' "$headers_file"
 grep -qi '^Content-Security-Policy:' "$headers_file"
 grep -qi '^Cache-Control: no-store' "$headers_file"
 
@@ -71,6 +72,17 @@ mass_assignment_status="$(
 )"
 
 test "$mass_assignment_status" = "400"
+
+out_of_range_numeric_payload='{"items":[{"sku":"SECURITY","quantity":2147483648,"unitPrice":10.00}]}'
+out_of_range_numeric_status="$(
+  curl -sS -o /dev/null -w '%{http_code}' \
+    -X POST "$API_BASE/orders" \
+    -H "Authorization: Bearer $token" \
+    -H "Content-Type: application/json" \
+    -d "$out_of_range_numeric_payload"
+)"
+
+test "$out_of_range_numeric_status" = "400"
 
 too_many_items="$(
   jq -nc '{
