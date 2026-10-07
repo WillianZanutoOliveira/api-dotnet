@@ -69,7 +69,13 @@ builder.Services.AddMassTransit(x =>
 
 var app = builder.Build();
 
-app.UseExceptionHandler();
+app.UseExceptionHandler(new Microsoft.AspNetCore.Diagnostics.ExceptionHandlerOptions
+{
+    StatusCodeSelector = exception =>
+        exception is BadHttpRequestException badRequest
+            ? badRequest.StatusCode
+            : StatusCodes.Status500InternalServerError
+});
 app.UsePlatformWebSecurity();
 app.UseAuthentication();
 app.UseAuthorization();
