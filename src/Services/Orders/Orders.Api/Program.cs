@@ -69,7 +69,7 @@ builder.Services.AddMassTransit(x =>
 
 var app = builder.Build();
 
-app.UseExceptionHandler(new Microsoft.AspNetCore.Diagnostics.ExceptionHandlerOptions
+app.UseExceptionHandler(new Microsoft.AspNetCore.Builder.ExceptionHandlerOptions
 {
     StatusCodeSelector = exception =>
         exception is BadHttpRequestException badRequest
