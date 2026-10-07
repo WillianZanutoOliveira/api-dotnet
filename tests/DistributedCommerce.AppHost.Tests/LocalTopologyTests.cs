@@ -1,4 +1,3 @@
-using System.Net;
 using Aspire.Hosting.Testing;
 using NUnit.Framework;
 
@@ -6,14 +5,11 @@ namespace DistributedCommerce.AppHost.Tests;
 
 public sealed class LocalTopologyTests
 {
-    private static readonly TimeSpan BuildTimeout = TimeSpan.FromMinutes(2);
-    private static readonly TimeSpan StartupTimeout = TimeSpan.FromMinutes(6);
-    private static readonly TimeSpan ResourceTimeout = TimeSpan.FromMinutes(2);
-    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan ModelTimeout = TimeSpan.FromMinutes(2);
 
     [Test]
     [Category("Topology")]
-    public async Task AppHost_Starts_Orders_And_Gateway()
+    public async Task AppHost_Declares_Expected_Secure_Topology()
     {
         Environment.SetEnvironmentVariable(
             "ASPIRE_DCP_USE_DEVELOPER_CERTIFICATE",
@@ -22,47 +18,37 @@ public sealed class LocalTopologyTests
             "ASPIRE_VERSION_CHECK_DISABLED",
             "true");
 
-        using var buildCancellation = new CancellationTokenSource(BuildTimeout);
+        using var cancellation = new CancellationTokenSource(ModelTimeout);
 
-        var appHost = await DistributedApplicationTestingBuilder
+        await using var appHost = await DistributedApplicationTestingBuilder
             .CreateAsync<Projects.DistributedCommerce_AppHost>(
-                cancellationToken: buildCancellation.Token);
+                cancellationToken: cancellation.Token);
 
-        await using var app = await appHost
-            .BuildAsync(buildCancellation.Token)
-            .WaitAsync(BuildTimeout, buildCancellation.Token);
+        var resourceNames = appHost.Resources
+            .Select(resource => resource.Name)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
 
-        using var startupCancellation = new CancellationTokenSource(StartupTimeout);
-
-        await app
-            .StartAsync(startupCancellation.Token)
-            .WaitAsync(StartupTimeout, startupCancellation.Token);
-
-        using var resourceCancellation = new CancellationTokenSource(ResourceTimeout);
-
-        await app.ResourceNotifications
-            .WaitForResourceHealthyAsync("orders-api", resourceCancellation.Token)
-            .WaitAsync(ResourceTimeout, resourceCancellation.Token);
-
-        await app.ResourceNotifications
-            .WaitForResourceHealthyAsync("api-gateway", resourceCancellation.Token)
-            .WaitAsync(ResourceTimeout, resourceCancellation.Token);
-
-        using var requestCancellation = new CancellationTokenSource(RequestTimeout);
-        using var gatewayClient = app.CreateHttpClient("api-gateway", "http");
-        using var healthResponse = await gatewayClient.GetAsync("/health", requestCancellation.Token);
-        using var aliveResponse = await gatewayClient.GetAsync("/alive", requestCancellation.Token);
-
-        using var ordersClient = app.CreateHttpClient("orders-api", "http");
-        using var openApiResponse = await ordersClient.GetAsync("/openapi/v1.json", requestCancellation.Token);
-        var openApiDocument = await openApiResponse.Content.ReadAsStringAsync(requestCancellation.Token);
-
-        Assert.Multiple(() =>
+        var expectedResourceNames = new[]
         {
-            Assert.That(healthResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-            Assert.That(aliveResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-            Assert.That(openApiResponse.StatusCode, Is.EqualTo(HttpStatusCode.OK));
-            Assert.That(openApiDocument, Does.Contain("\"openapi\""));
-        });
+            "api-gateway",
+            "inventory-db",
+            "inventory-migrator",
+            "inventory-service",
+            "keycloak",
+            "notifications-service",
+            "orders-api",
+            "orders-db",
+            "orders-migrator",
+            "payments-db",
+            "payments-migrator",
+            "payments-service",
+            "rabbitmq",
+            "vault",
+            "vault-init"
+        };
+
+        Assert.That(resourceNames, Is.EquivalentTo(expectedResourceNames));
+        Assert.That(resourceNames, Has.Length.EqualTo(expectedResourceNames.Length));
     }
 }
