@@ -58,6 +58,7 @@ public static class PlatformWebSecurityExtensions
                     headers.TryAdd("X-Content-Type-Options", "nosniff");
                     headers.TryAdd("X-Frame-Options", "DENY");
                     headers.TryAdd("Referrer-Policy", "no-referrer");
+                    headers.TryAdd("Cross-Origin-Resource-Policy", "same-origin");
                     headers.TryAdd(
                         "Permissions-Policy",
                         "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
