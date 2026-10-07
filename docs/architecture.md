@@ -23,21 +23,99 @@ O projeto foi desenhado intencionalmente em torno de preocupações arquiteturai
 
 ```mermaid
 flowchart TB
-    User[Cliente / Consumidor]
-    User --> Orders[Orders API]
+    Client[Cliente / Consumidor]
 
-    Orders --> Rabbit[(RabbitMQ)]
-    Rabbit --> Inventory[Inventory Service]
-    Rabbit --> Payments[Payments Service]
-    Rabbit --> Notifications[Notifications Service]
+    subgraph Identity["Identidade"]
+        Keycloak[Keycloak<br/>OIDC / OAuth 2.0<br/>Realm roles]
+    end
+
+    subgraph Edge["Borda HTTP"]
+        Gateway[YARP API Gateway<br/>JWT validation<br/>rate limiting]
+    end
+
+    subgraph Business["Bounded contexts"]
+        Orders[Orders API]
+        Inventory[Inventory Service]
+        Payments[Payments Service]
+        Notifications[Notifications Service]
+    end
+
+    subgraph Messaging["Mensageria assíncrona"]
+        Rabbit[(RabbitMQ<br/>MassTransit)]
+    end
+
+    subgraph Persistence["Database per service"]
+        OrdersDb[(Orders PostgreSQL)]
+        InventoryDb[(Inventory PostgreSQL)]
+        PaymentsDb[(Payments PostgreSQL)]
+    end
+
+    subgraph Secrets["Segredos e schema lifecycle"]
+        Vault[HashiCorp Vault<br/>KV v2 + Database Secrets Engine]
+        Migrator[DatabaseMigrator<br/>EF Core Migrations]
+    end
+
+    subgraph Telemetry["Observabilidade"]
+        Collector[OpenTelemetry Collector]
+        Tempo[Tempo]
+        Prometheus[Prometheus]
+        Grafana[Grafana]
+    end
+
+    Client -->|"login"| Keycloak
+    Keycloak -->|"JWT access token"| Client
+    Client -->|"Bearer JWT"| Gateway
+    Gateway -->|"JWT validado"| Orders
+
+    Orders --> OrdersDb
+    Orders -->|"OrderSubmitted"| Rabbit
+    Rabbit --> Inventory
+    Inventory --> InventoryDb
+    Inventory -->|"InventoryReserved / InventoryRejected"| Rabbit
+    Rabbit --> Payments
+    Payments --> PaymentsDb
+    Payments -->|"PaymentAuthorized / PaymentFailed"| Rabbit
     Rabbit --> Orders
+    Rabbit --> Notifications
 
-    Orders --> OrdersDb[(Orders DB)]
-    Inventory --> InventoryDb[(Inventory DB)]
-    Payments --> PaymentsDb[(Payments DB)]
+    Vault -. "runtime credentials" .-> Orders
+    Vault -. "runtime credentials" .-> Inventory
+    Vault -. "runtime credentials" .-> Payments
+    Vault -. "RabbitMQ secret" .-> Notifications
+    Vault -. "migration credential" .-> Migrator
+
+    Migrator -. "DDL / migrations" .-> OrdersDb
+    Migrator -. "DDL / migrations" .-> InventoryDb
+    Migrator -. "DDL / migrations" .-> PaymentsDb
+
+    Gateway -. "OTLP" .-> Collector
+    Orders -. "OTLP" .-> Collector
+    Inventory -. "OTLP" .-> Collector
+    Payments -. "OTLP" .-> Collector
+    Notifications -. "OTLP" .-> Collector
+
+    Collector --> Tempo
+    Collector --> Prometheus
+    Tempo --> Grafana
+    Prometheus --> Grafana
 ```
 
+O caminho síncrono termina em Orders. Depois do comando HTTP autenticado, a colaboração de negócio entre bounded contexts permanece assíncrona por RabbitMQ.
+
+
 ## Limites
+
+### Keycloak
+
+Keycloak é o Identity Provider OpenID Connect/OAuth 2.0 da plataforma. Ele autentica usuários, emite access tokens JWT e publica realm roles utilizadas pelas policies de autorização.
+
+Keycloak é um componente de identidade da plataforma, não um bounded context de negócio.
+
+### YARP API Gateway
+
+O Gateway é a entrada HTTP pública. Ele valida JWT na borda, aplica rate limiting por identidade e encaminha chamadas autenticadas para Orders.
+
+O Gateway não é a única barreira de segurança: Orders valida o JWT novamente.
 
 ### Orders
 
@@ -160,6 +238,132 @@ O design prioriza:
 - falhas observáveis;
 - possibilidade de replay.
 
+## Identidade e autorização
+
+Keycloak atua como Identity Provider OpenID Connect/OAuth 2.0. O fluxo HTTP autenticado é:
+
+```text
+Cliente
+  |
+  +--> Keycloak
+  |      |
+  |      +--> access token JWT
+  |
+  +--> YARP API Gateway
+           |
+           | issuer / audience / signature / lifetime
+           | rate limiting por sub
+           v
+        Orders API
+           |
+           | valida JWT novamente
+           | CustomerId = claim sub
+           | realm roles -> policies
+           | ownership do recurso
+           v
+        caso de uso
+```
+
+A validação acontece em duas camadas de propósito: Gateway e Orders. Isso fornece defesa em profundidade e evita que o serviço confie implicitamente no proxy.
+
+A identidade de negócio é derivada da claim `sub`; `CustomerId` não é aceito como autoridade no payload. Realm roles alimentam RBAC, e consultas de pedido verificam object-level authorization. Apenas a role administrativa possui bypass explícito de ownership.
+
+O realm local é versionado e importável, deixando autenticação/autorização reproduzíveis em Aspire, Docker Compose e CI. O password grant usado pelo smoke local é somente fixture de desenvolvimento; clientes interativos de produção devem usar Authorization Code + PKCE.
+
+Veja [ADR-0004](adr/0004-identity-keycloak.md).
+
+## Hardening HTTP e pentest readiness
+
+A borda HTTP e Orders compartilham um baseline de segurança no `ServiceDefaults`:
+
+- Kestrel sem header `Server`;
+- body máximo de 1 MiB;
+- limites de request line e headers;
+- timeout de request headers;
+- HSTS fora de Development;
+- `nosniff`, `DENY`, CSP e Permissions Policy;
+- TRACE/CONNECT bloqueados;
+- responses autenticadas com `Cache-Control: no-store`.
+
+Orders usa JSON estrito: propriedades não mapeadas são rejeitadas, profundidade é limitada e coleções/números de negócio possuem limites explícitos.
+
+Para BOLA, a leitura de customer não faz `GetById` global seguido de comparação em memória. A query é escopada no banco por:
+
+```text
+OrderId + CustomerId
+```
+
+Admin mantém um caminho explícito transversal. Um customer consultando um pedido de outro customer recebe `404`, evitando resource-existence disclosure.
+
+Além dos testes funcionais, o pipeline executa:
+
+- security invariants;
+- smoke adversarial HTTP/JWT;
+- CodeQL;
+- Gitleaks;
+- Trivy vulnerability/secret/IaC;
+- OWASP ZAP API Scan autenticado;
+- SBOM.
+
+Veja [postura de segurança](security-posture.md).
+
+## Gestão de segredos
+
+O perfil seguro usa HashiCorp Vault com dois mecanismos. KV v2 armazena os segredos estáticos restantes do demo, enquanto o Database Secrets Engine emite credenciais PostgreSQL dinâmicas para Orders, Inventory e Payments.
+
+Cada workload recebe um token independente por arquivo montado. Para banco, o token só pode ler `database/creds/<service>-app` e renovar leases sob o mesmo prefixo. A resposta do Vault fornece `username`, `password`, `lease_id`, TTL e `renewable`; o connection string é construído somente em memória.
+
+### Roles estáveis e logins efêmeros
+
+Cada banco possui uma role `NOLOGIN` estável (`orders_runtime`, `inventory_runtime`, `payments_runtime`). O Vault cria um login efêmero e concede membership somente nessa role. A sessão PostgreSQL faz `SET ROLE` via connection options, separando a identidade temporária da autorização persistente.
+
+O lease é renovado em background. Se a renovação falhar, o host encerra o processo para que o orquestrador force uma nova autenticação e uma nova credencial.
+
+No ambiente local, o root token existe apenas para bootstrap do Vault em modo dev. Em produção, a preferência é autenticação de plataforma, como Kubernetes Auth, com tokens curtos, TLS, auditoria e rotação. AppRole é tratado como fallback quando identidade nativa da plataforma não está disponível.
+
+A comunicação entre serviços continua assíncrona por RabbitMQ; não foram introduzidas chamadas HTTP service-to-service apenas para demonstrar OAuth. O lifecycle das credenciais PostgreSQL está detalhado no [ADR-0007](adr/0007-dynamic-postgresql-credentials.md). Isso preserva os limites arquiteturais já existentes.
+
+## Orquestração de desenvolvimento local com Aspire
+
+O AppHost em `src/Platform/DistributedCommerce.AppHost` modela a topologia local sem alterar os limites arquiteturais do sistema.
+
+```text
+Aspire AppHost
+├── Infrastructure containers
+│   ├── Keycloak
+│   ├── Vault
+│   ├── vault-init
+│   ├── RabbitMQ
+│   ├── Orders PostgreSQL
+│   ├── Inventory PostgreSQL
+│   └── Payments PostgreSQL
+│
+└── Local .NET projects
+    ├── DatabaseMigrator (one-shot)
+    ├── YARP API Gateway
+    ├── Orders API
+    ├── Inventory
+    ├── Payments
+    └── Notifications
+```
+
+A escolha de executar os workloads .NET como projetos locais melhora o inner loop: breakpoints, recompilação incremental, logs por recurso e telemetria aparecem no Aspire Dashboard. Dependências externas continuam containerizadas.
+
+A simplificação é somente operacional. O AppHost preserva:
+
+- autenticação Keycloak;
+- fluxo Keycloak → YARP → Orders com dupla validação JWT;
+- RabbitMQ;
+- Vault KV v2;
+- Vault Database Secrets Engine;
+- login PostgreSQL temporário por workload;
+- lease renewal e fail closed;
+- database-per-service.
+
+O Docker Compose seguro continua sendo o modelo de paridade usado pelo CI e a alternativa para executar toda a aplicação em containers. O Aspire AppHost é uma ferramenta de desenvolvimento, não a definição da arquitetura de implantação em produção.
+
+Veja [ADR-0008](adr/0008-dotnet-aspire-local-orchestration.md) e o [guia de desenvolvimento local](local-development.md).
+
 ## Observabilidade
 
 Um building block compartilhado de OpenTelemetry expõe:
@@ -169,7 +373,7 @@ Um building block compartilhado de OpenTelemetry expõe:
 - métricas de processamento de mensagens;
 - exportação OTLP quando configurada.
 
-O design permanece independente do backend, permitindo alimentar sistemas como Grafana Tempo, Datadog, New Relic ou collectors nativos de cloud.
+O perfil local inclui OpenTelemetry Collector, Grafana Tempo, Prometheus e Grafana. O código continua backend-agnostic: trocar o backend não exige acoplar os serviços a um fornecedor.
 
 ## Modelo de deployment
 
@@ -190,8 +394,142 @@ Para manter clareza de portfólio, a primeira versão intencionalmente não incl
 - frontend;
 - provedor real de pagamentos;
 - service mesh;
-- autenticação/autorização completas;
 - Event Sourcing;
 - stack de operadores Kubernetes.
 
 Esses itens podem ser adicionados no futuro, mas não são necessários para demonstrar as preocupações de consistência distribuída e mensageria que estão no centro do projeto.
+
+
+## Service Defaults, resiliência HTTP e proteção de borda
+
+Todos os workloads usam o building block `src/BuildingBlocks/ServiceDefaults`.
+
+Ele centraliza:
+
+- OpenTelemetry;
+- readiness em `/health`;
+- liveness em `/alive`;
+- service discovery;
+- Standard Resilience Handler para `HttpClient`.
+
+O objetivo é evitar que um novo serviço nasça sem os padrões operacionais mínimos.
+
+O Gateway adiciona token-bucket rate limiting particionado por identidade autenticada. Esse controle é de borda e não substitui autorização de negócio dentro dos serviços.
+
+Orders expõe OpenAPI somente em Development. O documento é verificado pelo teste de topologia Aspire.
+
+Veja [ADR-0009](adr/0009-service-defaults-api-resilience.md).
+
+## Software supply chain e runtime hardening
+
+A cadeia de entrega aplica controles em diferentes camadas:
+
+```text
+source
+  |
+  +--> CodeQL
+  +--> Trivy
+  +--> SBOM
+  +--> OpenSSF Scorecard
+  |
+  v
+GitHub Actions pinadas por SHA
+  |
+  v
+build de imagens
+  |
+  v
+containers .NET non-root
+  |
+  v
+tag v*
+  |
+  v
+GHCR + provenance attestation
+```
+
+As imagens .NET são executadas com o usuário non-root fornecido pelas imagens oficiais. No Compose com Vault, os token files são entregues com ownership numérico compatível com o workload.
+
+Os manifests Kubernetes usam:
+
+- `runAsNonRoot: true`;
+- `seccompProfile: RuntimeDefault`;
+- `allowPrivilegeEscalation: false`;
+- drop de todas as capabilities Linux;
+- readiness em `/health`;
+- liveness em `/alive`.
+
+Veja [ADR-0010](adr/0010-software-supply-chain.md).
+
+
+## Schema lifecycle e identidade de migration
+
+A aplicação não possui responsabilidade de criar ou migrar schema.
+
+```text
+PostgreSQL
+   |
+   +--> <service>_migrator (NOLOGIN, DDL)
+   |        ^
+   |        |
+   |     Vault <service>-migration
+   |        ^
+   |        |
+   |  DatabaseMigrator one-shot
+   |
+   +--> <service>_runtime (NOLOGIN, DML)
+            ^
+            |
+         Vault <service>-app
+            ^
+            |
+        application
+```
+
+EF Core Migrations são versionadas por bounded context. O `DatabaseMigrator` executa antes de Orders, Inventory e Payments em Compose/Aspire; no modelo GitOps ele é um Argo CD `PreSync` Job.
+
+Default privileges garantem que objetos criados pela role migrator concedam DML ao runtime sem entregar DDL à aplicação.
+
+Veja [ADR-0011](adr/0011-ef-migrations-vault-deployment-identity.md).
+
+## Guardrails executáveis
+
+A arquitetura é protegida por três camadas adicionais:
+
+- `Architecture.Tests` bloqueia dependências proibidas;
+- `Contracts.Compatibility.Tests` protege o shape dos integration events;
+- `Chaos.Tests` valida falha e recuperação de conectividade PostgreSQL com Testcontainers + Toxiproxy.
+
+Esses testes executam no mesmo `dotnet test` do CI.
+
+## GitOps e progressive delivery
+
+O exemplo de produção em `deploy/gitops` separa:
+
+```text
+build artifact
+    |
+    v
+versioned OCI image + attestation
+    |
+    v
+promotion PR
+    |
+    v
+main
+    |
+    v
+Argo CD reconciliation
+    |
+    +--> PreSync database migration
+    |
+    v
+Argo Rollouts canary
+20% -> health analysis -> 50% -> health analysis -> 100%
+```
+
+Runtime e migrator usam Kubernetes ServiceAccounts e Vault Kubernetes Auth roles diferentes.
+
+O canary consulta especificamente `orders-api-canary/health/deployment`. Sem traffic router dedicado, o exemplo usa distribuição aproximada por réplicas; um ambiente que exija pesos exatos deve adicionar um ingress/service mesh suportado, não um componente apenas decorativo.
+
+Veja [ADR-0012](adr/0012-architecture-contract-chaos-gitops.md) e [deploy/gitops](../deploy/gitops/README.md).

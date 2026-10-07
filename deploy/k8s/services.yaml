@@ -20,9 +20,22 @@ spec:
       labels:
         app: orders-api
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: orders-api
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image: ghcr.io/example/distributed-commerce/orders:latest
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           ports:
             - containerPort: 8080
           envFrom:
@@ -37,7 +50,7 @@ spec:
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /health
+              path: /alive
               port: 8080
             periodSeconds: 20
           resources:
@@ -47,6 +60,11 @@ spec:
             limits:
               cpu: "1"
               memory: 512Mi
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+
 ---
 apiVersion: v1
 kind: Service
@@ -73,9 +91,22 @@ spec:
       labels:
         app: inventory-service
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: inventory-service
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image: ghcr.io/example/distributed-commerce/inventory:latest
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           envFrom:
             - configMapRef:
                 name: distributed-commerce-config
@@ -87,7 +118,7 @@ spec:
               port: 8080
           livenessProbe:
             httpGet:
-              path: /health
+              path: /alive
               port: 8080
           resources:
             requests:
@@ -96,6 +127,11 @@ spec:
             limits:
               cpu: "1"
               memory: 512Mi
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -111,9 +147,22 @@ spec:
       labels:
         app: payments-service
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: payments-service
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image: ghcr.io/example/distributed-commerce/payments:latest
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           envFrom:
             - configMapRef:
                 name: distributed-commerce-config
@@ -125,7 +174,7 @@ spec:
               port: 8080
           livenessProbe:
             httpGet:
-              path: /health
+              path: /alive
               port: 8080
           resources:
             requests:
@@ -134,6 +183,11 @@ spec:
             limits:
               cpu: "1"
               memory: 512Mi
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -149,9 +203,22 @@ spec:
       labels:
         app: notifications-service
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: notifications-service
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           image: ghcr.io/example/distributed-commerce/notifications:latest
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           envFrom:
             - configMapRef:
                 name: distributed-commerce-config
@@ -163,7 +230,7 @@ spec:
               port: 8080
           livenessProbe:
             httpGet:
-              path: /health
+              path: /alive
               port: 8080
           resources:
             requests:
@@ -172,3 +239,7 @@ spec:
             limits:
               cpu: 500m
               memory: 256Mi
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

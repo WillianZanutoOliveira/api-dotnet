@@ -14,18 +14,29 @@ public sealed class OrderService(
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        if (string.IsNullOrWhiteSpace(command.CustomerId))
-            throw new ArgumentException("CustomerId is required.");
+        if (string.IsNullOrWhiteSpace(command.CustomerId) ||
+            command.CustomerId.Length > OrderInputLimits.MaximumCustomerIdLength)
+        {
+            throw new ArgumentException("CustomerId is invalid.");
+        }
 
-        if (command.Items is null || command.Items.Count == 0)
-            throw new ArgumentException("At least one item is required.");
+        if (command.Items is null ||
+            command.Items.Count == 0 ||
+            command.Items.Count > OrderInputLimits.MaximumItems)
+        {
+            throw new ArgumentException(
+                $"Orders must contain between 1 and {OrderInputLimits.MaximumItems} items.");
+        }
 
         if (command.Items.Any(item =>
                 string.IsNullOrWhiteSpace(item.Sku) ||
+                item.Sku.Trim().Length > OrderInputLimits.MaximumSkuLength ||
                 item.Quantity <= 0 ||
-                item.UnitPrice <= 0))
+                item.Quantity > OrderInputLimits.MaximumQuantityPerItem ||
+                item.UnitPrice <= 0 ||
+                item.UnitPrice > OrderInputLimits.MaximumUnitPrice))
         {
-            throw new ArgumentException("Each item must contain a SKU, positive quantity and positive unit price.");
+            throw new ArgumentException("One or more order items violate the accepted limits.");
         }
 
         var total = command.Items.Sum(item => item.Quantity * item.UnitPrice);
@@ -53,6 +64,25 @@ public sealed class OrderService(
     public async Task<OrderView?> GetAsync(Guid orderId, CancellationToken cancellationToken)
     {
         var order = await repository.GetByIdAsync(orderId, cancellationToken);
+        return order is null ? null : Map(order);
+    }
+
+    public async Task<OrderView?> GetForCustomerAsync(
+        Guid orderId,
+        string customerId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(customerId) ||
+            customerId.Length > OrderInputLimits.MaximumCustomerIdLength)
+        {
+            return null;
+        }
+
+        var order = await repository.GetByIdForCustomerAsync(
+            orderId,
+            customerId,
+            cancellationToken);
+
         return order is null ? null : Map(order);
     }
 

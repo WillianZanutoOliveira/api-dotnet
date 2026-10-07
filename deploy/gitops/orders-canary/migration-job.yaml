@@ -1,0 +1,73 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: orders-database-migration
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app: orders-database-migration
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/agent-inject-token: "true"
+        vault.hashicorp.com/agent-pre-populate-only: "true"
+        vault.hashicorp.com/agent-run-as-same-user: "true"
+        vault.hashicorp.com/role: orders-migrator
+    spec:
+      restartPolicy: Never
+      serviceAccountName: orders-migrator
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: database-migrator
+          image: ghcr.io/willianzanutooliveira/distributed-commerce-platform/database-migrator:v1.0.0
+          securityContext:
+            runAsUser: 1654
+            runAsGroup: 1654
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: MIGRATION_TARGET
+              value: orders
+            - name: ConnectionStrings__orders-db
+              value: ""
+            - name: Vault__Address
+              value: https://vault.vault.svc.cluster.local:8200
+            - name: Vault__TokenFile
+              value: /vault/secrets/token
+            - name: Vault__DatabaseRole
+              value: orders-migration
+            - name: Vault__DatabaseConnectionStringName
+              value: orders-db
+            - name: Vault__DatabaseHost
+              value: orders-db.platform.svc.cluster.local
+            - name: Vault__DatabasePort
+              value: "5432"
+            - name: Vault__DatabaseName
+              value: orders
+            - name: Vault__DatabaseRuntimeRole
+              value: orders_migrator
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

@@ -1,0 +1,158 @@
+{
+  "realm": "distributed-commerce",
+  "enabled": true,
+  "displayName": "Distributed Commerce",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "customer",
+        "description": "Can create and read owned orders"
+      },
+      {
+        "name": "admin",
+        "description": "Platform administrator with cross-customer order access"
+      }
+    ]
+  },
+  "scopeMappings": [
+    {
+      "client": "commerce-cli",
+      "roles": [
+        "customer",
+        "admin"
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "distributed-commerce-api",
+      "name": "Distributed Commerce API",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "bearerOnly": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false
+    },
+    {
+      "clientId": "commerce-cli",
+      "name": "Local demo CLI",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "protocolMappers": [
+        {
+          "name": "distributed-commerce-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "distributed-commerce-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "flat-realm-roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "demo-customer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "Customer",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local-demo-only",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "customer"
+      ],
+      "email": "demo-customer@local.test",
+      "requiredActions": []
+    },
+    {
+      "username": "demo-customer-2",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "Customer Two",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local-demo-only",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "customer"
+      ],
+      "email": "demo-customer-2@local.test",
+      "requiredActions": []
+    },
+    {
+      "username": "demo-admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "local-demo-only",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "customer",
+        "admin"
+      ],
+      "email": "demo-admin@local.test",
+      "requiredActions": []
+    }
+  ],
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "minimumQuickLoginWaitSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxFailureWaitSeconds": 900,
+  "maxDeltaTimeSeconds": 43200,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "rememberMe": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "defaultSignatureAlgorithm": "RS256"
+}

@@ -23,21 +23,99 @@ It is deliberately designed around architectural concerns that become important 
 
 ```mermaid
 flowchart TB
-    User[Client / Consumer]
-    User --> Orders[Orders API]
+    Client[Client / Consumer]
 
-    Orders --> Rabbit[(RabbitMQ)]
-    Rabbit --> Inventory[Inventory Service]
-    Rabbit --> Payments[Payments Service]
-    Rabbit --> Notifications[Notifications Service]
+    subgraph Identity["Identity"]
+        Keycloak[Keycloak<br/>OIDC / OAuth 2.0<br/>Realm roles]
+    end
+
+    subgraph Edge["HTTP edge"]
+        Gateway[YARP API Gateway<br/>JWT validation<br/>rate limiting]
+    end
+
+    subgraph Business["Bounded contexts"]
+        Orders[Orders API]
+        Inventory[Inventory Service]
+        Payments[Payments Service]
+        Notifications[Notifications Service]
+    end
+
+    subgraph Messaging["Asynchronous messaging"]
+        Rabbit[(RabbitMQ<br/>MassTransit)]
+    end
+
+    subgraph Persistence["Database per service"]
+        OrdersDb[(Orders PostgreSQL)]
+        InventoryDb[(Inventory PostgreSQL)]
+        PaymentsDb[(Payments PostgreSQL)]
+    end
+
+    subgraph Secrets["Secrets and schema lifecycle"]
+        Vault[HashiCorp Vault<br/>KV v2 + Database Secrets Engine]
+        Migrator[DatabaseMigrator<br/>EF Core Migrations]
+    end
+
+    subgraph Telemetry["Observability"]
+        Collector[OpenTelemetry Collector]
+        Tempo[Tempo]
+        Prometheus[Prometheus]
+        Grafana[Grafana]
+    end
+
+    Client -->|"login"| Keycloak
+    Keycloak -->|"JWT access token"| Client
+    Client -->|"Bearer JWT"| Gateway
+    Gateway -->|"validated JWT"| Orders
+
+    Orders --> OrdersDb
+    Orders -->|"OrderSubmitted"| Rabbit
+    Rabbit --> Inventory
+    Inventory --> InventoryDb
+    Inventory -->|"InventoryReserved / InventoryRejected"| Rabbit
+    Rabbit --> Payments
+    Payments --> PaymentsDb
+    Payments -->|"PaymentAuthorized / PaymentFailed"| Rabbit
     Rabbit --> Orders
+    Rabbit --> Notifications
 
-    Orders --> OrdersDb[(Orders DB)]
-    Inventory --> InventoryDb[(Inventory DB)]
-    Payments --> PaymentsDb[(Payments DB)]
+    Vault -. "runtime credentials" .-> Orders
+    Vault -. "runtime credentials" .-> Inventory
+    Vault -. "runtime credentials" .-> Payments
+    Vault -. "RabbitMQ secret" .-> Notifications
+    Vault -. "migration credential" .-> Migrator
+
+    Migrator -. "DDL / migrations" .-> OrdersDb
+    Migrator -. "DDL / migrations" .-> InventoryDb
+    Migrator -. "DDL / migrations" .-> PaymentsDb
+
+    Gateway -. "OTLP" .-> Collector
+    Orders -. "OTLP" .-> Collector
+    Inventory -. "OTLP" .-> Collector
+    Payments -. "OTLP" .-> Collector
+    Notifications -. "OTLP" .-> Collector
+
+    Collector --> Tempo
+    Collector --> Prometheus
+    Tempo --> Grafana
+    Prometheus --> Grafana
 ```
 
+The synchronous path ends at Orders. After the authenticated HTTP command, business collaboration between bounded contexts remains asynchronous through RabbitMQ.
+
+
 ## Boundaries
+
+### Keycloak
+
+Keycloak is the platform OpenID Connect/OAuth 2.0 Identity Provider. It authenticates users, issues JWT access tokens and publishes realm roles used by authorization policies.
+
+Keycloak is an identity platform component rather than a business bounded context.
+
+### YARP API Gateway
+
+The Gateway is the public HTTP ingress. It validates JWTs at the edge, applies identity-partitioned rate limiting and forwards authenticated calls to Orders.
+
+The Gateway is not the only security boundary: Orders validates the JWT again.
 
 ### Orders
 
@@ -160,6 +238,124 @@ The design favors:
 - observable failures;
 - replayability.
 
+## Identity and authorization
+
+Keycloak acts as the OpenID Connect/OAuth 2.0 Identity Provider. The authenticated HTTP path is:
+
+```text
+Client
+  |
+  +--> Keycloak
+  |      |
+  |      +--> JWT access token
+  |
+  +--> YARP API Gateway
+           |
+           | issuer / audience / signature / lifetime
+           | subject-partitioned rate limiting
+           v
+        Orders API
+           |
+           | validates JWT again
+           | CustomerId = sub claim
+           | realm roles -> policies
+           | resource ownership
+           v
+        use case
+```
+
+JWT validation intentionally happens at both Gateway and Orders. This defense-in-depth model prevents the service from implicitly trusting the proxy.
+
+Business identity comes from the `sub` claim; `CustomerId` is not trusted from the request payload. Realm roles drive RBAC, while order reads enforce object-level authorization. Only the admin role has an explicit ownership bypass.
+
+The local realm is versioned/importable so authentication and authorization remain reproducible across Aspire, Docker Compose and CI. The local password grant is only a development fixture; interactive production clients should use Authorization Code + PKCE.
+
+See [ADR-0004](adr/0004-identity-keycloak.en.md).
+
+## HTTP hardening and pentest readiness
+
+The HTTP edge and Orders share a security baseline through `ServiceDefaults`:
+
+- Kestrel `Server` header disabled;
+- 1 MiB body limit;
+- request-line/header bounds;
+- request-header timeout;
+- HSTS outside Development;
+- `nosniff`, frame denial, CSP and Permissions Policy;
+- TRACE/CONNECT rejected;
+- authenticated responses marked `no-store`.
+
+Orders uses strict JSON handling: unmapped properties are rejected, depth is bounded and business collections/numeric values have explicit limits.
+
+For BOLA, customer reads are not implemented as a global `GetById` followed by an in-memory comparison. PostgreSQL queries are scoped by:
+
+```text
+OrderId + CustomerId
+```
+
+Admin retains an explicit cross-customer path. A customer querying another customer's order receives `404`, avoiding resource-existence disclosure.
+
+The delivery pipeline adds static security invariants, adversarial HTTP/JWT smoke tests, CodeQL, Gitleaks, Trivy vulnerability/secret/IaC scanning, authenticated OWASP ZAP API DAST and SBOM generation.
+
+See [security posture](security-posture.en.md).
+
+## Secrets management
+
+The secure profile uses two Vault mechanisms. KV v2 stores the remaining static demo secrets, while the Database Secrets Engine issues dynamic PostgreSQL credentials for Orders, Inventory and Payments.
+
+Each workload receives an independent file-mounted token. For database access, the token can only read `database/creds/<service>-app` and renew leases under the same prefix. Vault returns `username`, `password`, `lease_id`, TTL and `renewable`; the connection string is built only in memory.
+
+### Stable roles and ephemeral logins
+
+Each database has a stable `NOLOGIN` role (`orders_runtime`, `inventory_runtime`, `payments_runtime`). Vault creates an ephemeral login and grants membership only in that role. PostgreSQL sessions switch role through connection options, separating temporary identity from persistent authorization.
+
+The lease is renewed in the background. Renewal failure terminates the host so the orchestrator can force a new authentication and credential cycle.
+
+Locally, the root token exists only to bootstrap Vault in dev mode. Production should prefer platform authentication such as Kubernetes Auth, with short-lived tokens, TLS, auditing and rotation. AppRole is a fallback when native platform identity is unavailable.
+
+Service collaboration remains asynchronous through RabbitMQ; no synchronous service-to-service HTTP calls were introduced just to demonstrate OAuth. PostgreSQL credential lifecycle is detailed in [ADR-0007](adr/0007-dynamic-postgresql-credentials.en.md). This preserves the existing architectural boundaries.
+
+## Local development orchestration with Aspire
+
+The AppHost under `src/Platform/DistributedCommerce.AppHost` models the local topology without changing system boundaries.
+
+```text
+Aspire AppHost
+├── Infrastructure containers
+│   ├── Keycloak
+│   ├── Vault
+│   ├── vault-init
+│   ├── RabbitMQ
+│   ├── Orders PostgreSQL
+│   ├── Inventory PostgreSQL
+│   └── Payments PostgreSQL
+│
+└── Local .NET projects
+    ├── DatabaseMigrator (one-shot)
+    ├── YARP API Gateway
+    ├── Orders API
+    ├── Inventory
+    ├── Payments
+    └── Notifications
+```
+
+Running .NET workloads as local projects improves the inner loop through breakpoints, incremental builds, per-resource logs and Aspire Dashboard telemetry. External dependencies remain containerized.
+
+The simplification is operational only. The AppHost preserves:
+
+- Keycloak authentication;
+- the Keycloak → YARP → Orders flow with double JWT validation;
+- RabbitMQ;
+- Vault KV v2;
+- Vault Database Secrets Engine;
+- temporary PostgreSQL workload identities;
+- lease renewal and fail-closed behavior;
+- database-per-service ownership.
+
+Secure Docker Compose remains the CI-tested parity model and the alternative for a fully containerized run. The Aspire AppHost is a development tool, not the production deployment architecture.
+
+See [ADR-0008](adr/0008-dotnet-aspire-local-orchestration.en.md) and the [local-development guide](local-development.en.md).
+
 ## Observability
 
 A shared OpenTelemetry building block exposes:
@@ -169,7 +365,7 @@ A shared OpenTelemetry building block exposes:
 - message-processing metrics;
 - OTLP export when configured.
 
-The design stays backend-agnostic so the same code can feed systems such as Grafana Tempo, Datadog, New Relic or cloud-native collectors.
+The local profile includes OpenTelemetry Collector, Grafana Tempo, Prometheus and Grafana. The application code remains backend-agnostic so telemetry backends can change without coupling services to a vendor.
 
 ## Deployment model
 
@@ -190,8 +386,142 @@ For portfolio clarity, the first version intentionally does not include:
 - a frontend;
 - a real payment provider;
 - service mesh;
-- full authentication/authorization;
 - Event Sourcing;
 - a Kubernetes operator stack.
 
 These can be added later, but are not required to demonstrate the distributed consistency and messaging concerns at the center of the project.
+
+
+## Service Defaults, HTTP resilience and edge protection
+
+All workloads use the `src/BuildingBlocks/ServiceDefaults` building block.
+
+It centralizes:
+
+- OpenTelemetry;
+- readiness at `/health`;
+- liveness at `/alive`;
+- service discovery;
+- the Standard Resilience Handler for `HttpClient`.
+
+The goal is to prevent new services from being created without the platform's minimum operational baseline.
+
+The Gateway adds identity-partitioned token-bucket rate limiting. This is an edge control and does not replace business authorization inside services.
+
+Orders exposes OpenAPI only in Development, and the Aspire topology test verifies the document.
+
+See [ADR-0009](adr/0009-service-defaults-api-resilience.en.md).
+
+## Software supply chain and runtime hardening
+
+Delivery controls are layered:
+
+```text
+source
+  |
+  +--> CodeQL
+  +--> Trivy
+  +--> SBOM
+  +--> OpenSSF Scorecard
+  |
+  v
+commit-pinned GitHub Actions
+  |
+  v
+image builds
+  |
+  v
+non-root .NET containers
+  |
+  v
+v* tag
+  |
+  v
+GHCR + provenance attestation
+```
+
+.NET images run with the non-root user provided by the official runtime image. Under Vault-enabled Compose, token files are delivered with numeric ownership compatible with the workload user.
+
+Kubernetes examples use:
+
+- `runAsNonRoot: true`;
+- `seccompProfile: RuntimeDefault`;
+- `allowPrivilegeEscalation: false`;
+- all Linux capabilities dropped;
+- readiness at `/health`;
+- liveness at `/alive`.
+
+See [ADR-0010](adr/0010-software-supply-chain.en.md).
+
+
+## Schema lifecycle and migration identity
+
+Application runtime does not create or migrate database schema.
+
+```text
+PostgreSQL
+   |
+   +--> <service>_migrator (NOLOGIN, DDL)
+   |        ^
+   |        |
+   |     Vault <service>-migration
+   |        ^
+   |        |
+   |  one-shot DatabaseMigrator
+   |
+   +--> <service>_runtime (NOLOGIN, DML)
+            ^
+            |
+         Vault <service>-app
+            ^
+            |
+        application
+```
+
+EF Core Migrations are committed per bounded context. `DatabaseMigrator` runs before Orders, Inventory and Payments in Compose/Aspire; the GitOps model runs it as an Argo CD `PreSync` Job.
+
+Default privileges grant runtime DML on migration-created objects without giving application runtime DDL.
+
+See [ADR-0011](adr/0011-ef-migrations-vault-deployment-identity.en.md).
+
+## Executable guardrails
+
+Three additional layers protect architecture:
+
+- `Architecture.Tests` blocks forbidden dependencies;
+- `Contracts.Compatibility.Tests` guards integration-event shapes;
+- `Chaos.Tests` validates PostgreSQL connectivity failure and recovery with Testcontainers + Toxiproxy.
+
+These tests execute through the normal CI `dotnet test`.
+
+## GitOps and progressive delivery
+
+The production example under `deploy/gitops` separates:
+
+```text
+build artifact
+    |
+    v
+versioned OCI image + attestation
+    |
+    v
+promotion PR
+    |
+    v
+main
+    |
+    v
+Argo CD reconciliation
+    |
+    +--> PreSync database migration
+    |
+    v
+Argo Rollouts canary
+20% -> health analysis -> 50% -> health analysis -> 100%
+```
+
+Runtime and migration use separate Kubernetes ServiceAccounts and Vault Kubernetes Auth roles.
+
+Canary analysis targets `orders-api-canary/health/deployment`. Without a dedicated traffic router, this example uses replica-based approximate weights; environments requiring exact traffic percentages should integrate a supported ingress/service mesh.
+
+See [ADR-0012](adr/0012-architecture-contract-chaos-gitops.en.md) and [deploy/gitops](../deploy/gitops/README.en.md).

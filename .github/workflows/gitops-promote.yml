@@ -1,0 +1,97 @@
+name: GitOps Promotion
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Released version to promote, for example v1.2.3"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: gitops-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote-orders:
+    name: Propose Orders production promotion
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Validate released version
+        env:
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          if ! printf '%s' "$VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$'; then
+            echo "Version must be a v-prefixed semantic version." >&2
+            exit 1
+          fi
+
+          git fetch --tags --force
+
+          if ! git show-ref --verify --quiet "refs/tags/$VERSION"; then
+            echo "Release tag $VERSION does not exist." >&2
+            exit 1
+          fi
+
+      - name: Update GitOps image tags
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          version = os.environ["VERSION"]
+          path = Path("deploy/gitops/orders-canary/kustomization.yaml")
+          content = path.read_text(encoding="utf-8")
+          content, count = re.subn(
+              r"(?m)^(\s*newTag:)\s+.*$",
+              rf"\1 {version}",
+              content,
+          )
+
+          if count != 2:
+              raise SystemExit(f"Expected to update two image tags, updated {count}.")
+
+          path.write_text(content, encoding="utf-8")
+          PY
+
+      - name: Create promotion pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "GitOps already targets $VERSION."
+            exit 0
+          fi
+
+          branch="gitops/promote-orders-${VERSION}-${GITHUB_RUN_ID}"
+
+          git config user.name "distributed-commerce-gitops"
+          git config user.email "distributed-commerce-gitops@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add deploy/gitops/orders-canary/kustomization.yaml
+          git commit -m "Promote Orders to $VERSION"
+          git push origin "$branch"
+
+          gh pr create \
+            --base main \
+            --head "$branch" \
+            --title "GitOps: promote Orders to $VERSION" \
+            --body "Promotes the attested Orders and Database Migrator images to **$VERSION**. Argo CD will reconcile only after this PR is reviewed and merged. The PreSync migration job runs before the Argo Rollouts canary progression."

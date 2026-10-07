@@ -1,12 +1,23 @@
 services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.0
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD}
+    ports:
+      - "127.0.0.1:8180:8080"
+    volumes:
+      - ./deploy/keycloak/distributed-commerce-realm.json:/opt/keycloak/data/import/distributed-commerce-realm.json:ro
+
   rabbitmq:
     image: rabbitmq:4-management
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 5s
@@ -20,14 +31,14 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d orders"]
       interval: 5s
       timeout: 5s
       retries: 20
     volumes:
-      - orders-data:/var/lib/postgresql/data
+      - orders-data:/var/lib/postgresql
 
   inventory-db:
     image: postgres:18-alpine
@@ -36,14 +47,14 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d inventory"]
       interval: 5s
       timeout: 5s
       retries: 20
     volumes:
-      - inventory-data:/var/lib/postgresql/data
+      - inventory-data:/var/lib/postgresql
 
   payments-db:
     image: postgres:18-alpine
@@ -52,81 +63,205 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5434:5432"
+      - "127.0.0.1:5434:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d payments"]
       interval: 5s
       timeout: 5s
       retries: 20
     volumes:
-      - payments-data:/var/lib/postgresql/data
+      - payments-data:/var/lib/postgresql
+
+  orders-migrator:
+    build:
+      context: .
+      dockerfile: src/Platform/DatabaseMigrator/Dockerfile
+    environment:
+      MIGRATION_TARGET: orders
+      ConnectionStrings__orders-db: "Host=orders-db;Port=5432;Database=orders;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+    depends_on:
+      orders-db:
+        condition: service_healthy
+
+  inventory-migrator:
+    build:
+      context: .
+      dockerfile: src/Platform/DatabaseMigrator/Dockerfile
+    environment:
+      MIGRATION_TARGET: inventory
+      ConnectionStrings__inventory-db: "Host=inventory-db;Port=5432;Database=inventory;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+    depends_on:
+      inventory-db:
+        condition: service_healthy
+
+  payments-migrator:
+    build:
+      context: .
+      dockerfile: src/Platform/DatabaseMigrator/Dockerfile
+    environment:
+      MIGRATION_TARGET: payments
+      ConnectionStrings__payments-db: "Host=payments-db;Port=5432;Database=payments;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+    depends_on:
+      payments-db:
+        condition: service_healthy
 
   orders-api:
     build:
       context: .
       dockerfile: src/Services/Orders/Orders.Api/Dockerfile
     environment:
+      ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__orders-db: "Host=orders-db;Port=5432;Database=orders;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
       RabbitMq__Host: rabbitmq
       RabbitMq__Username: ${RABBITMQ_DEFAULT_USER}
       RabbitMq__Password: ${RABBITMQ_DEFAULT_PASS}
+      Keycloak__Authority: "http://keycloak:8080/realms/distributed-commerce"
+      Keycloak__MetadataAddress: "http://keycloak:8080/realms/distributed-commerce/.well-known/openid-configuration"
+      Keycloak__Issuer: "http://localhost:8180/realms/distributed-commerce"
+      Keycloak__Audience: "distributed-commerce-api"
+      Keycloak__RequireHttpsMetadata: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
     depends_on:
+      keycloak:
+        condition: service_started
       rabbitmq:
         condition: service_healthy
       orders-db:
         condition: service_healthy
+      orders-migrator:
+        condition: service_completed_successfully
     ports:
-      - "8081:8080"
+      - "127.0.0.1:8081:8080"
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: src/Gateway/ApiGateway/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Keycloak__Authority: "http://keycloak:8080/realms/distributed-commerce"
+      Keycloak__MetadataAddress: "http://keycloak:8080/realms/distributed-commerce/.well-known/openid-configuration"
+      Keycloak__Issuer: "http://localhost:8180/realms/distributed-commerce"
+      Keycloak__Audience: "distributed-commerce-api"
+      Keycloak__RequireHttpsMetadata: "false"
+      ReverseProxy__Clusters__orders-cluster__Destinations__primary__Address: "http://orders-api:8080/"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+    depends_on:
+      keycloak:
+        condition: service_started
+      orders-api:
+        condition: service_started
+    ports:
+      - "127.0.0.1:8080:8080"
 
   inventory-service:
     build:
       context: .
       dockerfile: src/Services/Inventory/Inventory.Service/Dockerfile
     environment:
+      ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__inventory-db: "Host=inventory-db;Port=5432;Database=inventory;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
       RabbitMq__Host: rabbitmq
       RabbitMq__Username: ${RABBITMQ_DEFAULT_USER}
       RabbitMq__Password: ${RABBITMQ_DEFAULT_PASS}
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
     depends_on:
       rabbitmq:
         condition: service_healthy
       inventory-db:
         condition: service_healthy
+      inventory-migrator:
+        condition: service_completed_successfully
     ports:
-      - "8082:8080"
+      - "127.0.0.1:8082:8080"
 
   payments-service:
     build:
       context: .
       dockerfile: src/Services/Payments/Payments.Service/Dockerfile
     environment:
+      ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__payments-db: "Host=payments-db;Port=5432;Database=payments;Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
       RabbitMq__Host: rabbitmq
       RabbitMq__Username: ${RABBITMQ_DEFAULT_USER}
       RabbitMq__Password: ${RABBITMQ_DEFAULT_PASS}
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
     depends_on:
       rabbitmq:
         condition: service_healthy
       payments-db:
         condition: service_healthy
+      payments-migrator:
+        condition: service_completed_successfully
     ports:
-      - "8083:8080"
+      - "127.0.0.1:8083:8080"
 
   notifications-service:
     build:
       context: .
       dockerfile: src/Services/Notifications/Notifications.Service/Dockerfile
     environment:
+      ASPNETCORE_ENVIRONMENT: Development
       RabbitMq__Host: rabbitmq
       RabbitMq__Username: ${RABBITMQ_DEFAULT_USER}
       RabbitMq__Password: ${RABBITMQ_DEFAULT_PASS}
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
     depends_on:
       rabbitmq:
         condition: service_healthy
     ports:
-      - "8084:8080"
+      - "127.0.0.1:8084:8080"
+
+  tempo:
+    image: grafana/tempo:2.10.8
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./deploy/observability/tempo.yml:/etc/tempo.yml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "127.0.0.1:3200:3200"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.162.0
+    command: ["--config=/etc/otelcol-contrib/config.yml"]
+    volumes:
+      - ./deploy/observability/otel-collector.yml:/etc/otelcol-contrib/config.yml:ro
+    depends_on:
+      - tempo
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+      - "127.0.0.1:8889:8889"
+
+  prometheus:
+    image: prom/prometheus:v3.14.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    volumes:
+      - ./deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - otel-collector
+    ports:
+      - "127.0.0.1:9090:9090"
+
+  grafana:
+    image: grafana/grafana:13.2.3
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./deploy/observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - tempo
+    ports:
+      - "127.0.0.1:3000:3000"
 
 volumes:
   orders-data:
   inventory-data:
   payments-data:
+  tempo-data:
+  grafana-data:

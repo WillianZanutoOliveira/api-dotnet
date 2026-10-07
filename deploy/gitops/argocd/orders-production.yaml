@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: distributed-commerce-orders
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/WillianZanutoOliveira/distributed-commerce-platform.git
+    targetRevision: main
+    path: deploy/gitops/orders-canary
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: distributed-commerce
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true

@@ -1,0 +1,14 @@
+CREATE ROLE orders_runtime NOLOGIN;
+CREATE ROLE orders_migrator NOLOGIN;
+
+GRANT CONNECT ON DATABASE orders TO orders_runtime;
+GRANT CONNECT ON DATABASE orders TO orders_migrator;
+
+GRANT USAGE ON SCHEMA public TO orders_runtime;
+GRANT USAGE, CREATE ON SCHEMA public TO orders_migrator;
+
+ALTER DEFAULT PRIVILEGES FOR ROLE orders_migrator IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO orders_runtime;
+
+ALTER DEFAULT PRIVILEGES FOR ROLE orders_migrator IN SCHEMA public
+  GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO orders_runtime;

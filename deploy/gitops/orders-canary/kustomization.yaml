@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: distributed-commerce
+
+resources:
+  - namespace.yaml
+  - serviceaccounts.yaml
+  - runtime-config.yaml
+  - services.yaml
+  - analysis-template.yaml
+  - migration-job.yaml
+  - rollout.yaml
+
+images:
+  - name: ghcr.io/willianzanutooliveira/distributed-commerce-platform/orders
+    newTag: v1.0.0
+  - name: ghcr.io/willianzanutooliveira/distributed-commerce-platform/database-migrator
+    newTag: v1.0.0

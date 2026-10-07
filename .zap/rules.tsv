@@ -1,0 +1,6 @@
+# ZAP API scan policy.
+# Local DAST runs over loopback HTTP. Production requires HTTPS at the ingress
+# and Keycloak metadata is rejected outside Development unless it uses HTTPS.
+10035	INFO	(Strict-Transport-Security is validated at the production TLS boundary, not the local HTTP DAST fixture)
+10202	INFO	(Anti-CSRF tokens are not applicable to this stateless Bearer-token API; authentication is not cookie based)
+10016	INFO	(Legacy X-XSS-Protection is intentionally not enabled; modern CSP and nosniff headers are used)

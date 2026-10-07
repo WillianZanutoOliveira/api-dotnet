@@ -1,0 +1,145 @@
+name: DAST
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - ".github/workflows/dast.yml"
+      - ".zap/**"
+      - "docker-compose*.yml"
+      - "deploy/keycloak/**"
+      - "scripts/security-smoke.sh"
+      - "src/Gateway/**"
+      - "src/BuildingBlocks/Security/**"
+      - "src/BuildingBlocks/ServiceDefaults/**"
+      - "src/Services/Orders/**"
+  schedule:
+    - cron: "31 3 * * 4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dast-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zap-api:
+    name: OWASP ZAP authenticated API scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Prepare local environment
+        run: cp .env.example .env
+
+      - name: Start disposable secure platform
+        run: >
+          docker compose
+          -f docker-compose.yml
+          -f docker-compose.vault.yml
+          -f docker-compose.dast.yml
+          up -d --build
+          api-gateway inventory-service payments-service notifications-service
+
+      - name: Wait for security-test surface
+        shell: bash
+        run: |
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://localhost:8180/realms/distributed-commerce/.well-known/openid-configuration >/dev/null \
+              && curl -fsS http://localhost:8080/health >/dev/null \
+              && curl -fsS http://localhost:8081/openapi/v1.json >/dev/null; then
+              exit 0
+            fi
+
+            echo "Waiting for DAST stack ($attempt/90)..."
+            sleep 2
+          done
+
+          echo "DAST stack did not become ready." >&2
+          exit 1
+
+      - name: Obtain disposable authenticated token
+        id: token
+        shell: bash
+        run: |
+          token="$(
+            curl -fsS -X POST \
+              http://localhost:8180/realms/distributed-commerce/protocol/openid-connect/token \
+              -H "Content-Type: application/x-www-form-urlencoded" \
+              --data-urlencode "grant_type=password" \
+              --data-urlencode "client_id=commerce-cli" \
+              --data-urlencode "username=demo-customer" \
+              --data-urlencode "password=local-demo-only" \
+              | jq -er '.access_token'
+          )"
+
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare Gateway OpenAPI target
+        run: |
+          mkdir -p zap-work
+          cp .zap/rules.tsv zap-work/rules.tsv
+          curl -fsS http://localhost:8081/openapi/v1.json \
+            | jq '.servers = [{"url":"http://127.0.0.1:8080/api"}]' \
+            > zap-work/zap-openapi.json
+          chmod 0777 zap-work
+          chmod 0644 zap-work/rules.tsv zap-work/zap-openapi.json
+
+      - name: OWASP ZAP active API scan
+        env:
+          ZAP_AUTH_HEADER: Authorization
+          ZAP_AUTH_HEADER_VALUE: Bearer ${{ steps.token.outputs.token }}
+          ZAP_AUTH_HEADER_SITE: 127.0.0.1
+        shell: bash
+        run: |
+          docker run --rm --network host \
+            -e ZAP_AUTH_HEADER \
+            -e ZAP_AUTH_HEADER_VALUE \
+            -e ZAP_AUTH_HEADER_SITE \
+            -v "$PWD/zap-work:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy:2.17.0 \
+            zap-api-scan.py \
+              -t /zap/wrk/zap-openapi.json \
+              -f openapi \
+              -c /zap/wrk/rules.tsv \
+              -r zap-report.html \
+              -J zap-report.json \
+              -w zap-report.md \
+              -T 10
+
+      - name: Upload ZAP evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: zap-api-security-report
+          path: |
+            zap-work/zap-report.html
+            zap-work/zap-report.json
+            zap-work/zap-report.md
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: DAST stack logs
+        if: failure()
+        run: >
+          docker compose
+          -f docker-compose.yml
+          -f docker-compose.vault.yml
+          -f docker-compose.dast.yml
+          logs --no-color
+          api-gateway orders-api keycloak vault vault-init orders-migrator orders-db
+
+      - name: Stop disposable security stack
+        if: always()
+        run: >
+          docker compose
+          -f docker-compose.yml
+          -f docker-compose.vault.yml
+          -f docker-compose.dast.yml
+          down -v --remove-orphans

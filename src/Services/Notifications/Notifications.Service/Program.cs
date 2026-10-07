@@ -1,20 +1,25 @@
-using DistributedCommerce.Observability;
+using DistributedCommerce.Secrets;
+using DistributedCommerce.ServiceDefaults;
 using MassTransit;
 
 namespace Notifications.Service;
 
-public partial class Program
+public static partial class Program
 {
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+        await builder.Configuration.AddVaultSecretsAsync();
+        builder.Services.AddVaultLeaseRenewal();
 
         var rabbitHost = builder.Configuration["RabbitMq:Host"] ?? "localhost";
-        var rabbitUser = builder.Configuration["RabbitMq:Username"] ?? "guest";
-        var rabbitPassword = builder.Configuration["RabbitMq:Password"] ?? "guest";
+        var rabbitUser = builder.Configuration["RabbitMq:Username"]
+            ?? throw new InvalidOperationException("RabbitMQ username is required.");
+        var rabbitPassword = builder.Configuration["RabbitMq:Password"]
+            ?? throw new InvalidOperationException("RabbitMQ password is required.");
 
-        builder.Services.AddPlatformObservability(builder.Configuration, "notifications-service");
-        builder.Services.AddHealthChecks();
+        builder.AddPlatformServiceDefaults("notifications-service");
+        builder.AddPlatformWebSecurity();
 
         builder.Services.AddMassTransit(x =>
         {
@@ -38,7 +43,9 @@ public partial class Program
         });
 
         var app = builder.Build();
-        app.MapHealthChecks("/health");
+
+        app.UsePlatformWebSecurity();
+        app.MapPlatformDefaultEndpoints();
         await app.RunAsync();
     }
 }

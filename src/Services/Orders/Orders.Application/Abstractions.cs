@@ -6,6 +6,10 @@ public interface IOrderRepository
 {
     Task AddAsync(Order order, CancellationToken cancellationToken);
     Task<Order?> GetByIdAsync(Guid orderId, CancellationToken cancellationToken);
+    Task<Order?> GetByIdForCustomerAsync(
+        Guid orderId,
+        string customerId,
+        CancellationToken cancellationToken);
 }
 
 public interface IUnitOfWork

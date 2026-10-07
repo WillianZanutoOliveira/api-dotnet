@@ -1,0 +1,16 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: orders-canary-health
+spec:
+  metrics:
+    - name: canary-readiness
+      interval: 10s
+      count: 3
+      failureLimit: 1
+      successCondition: result == true
+      provider:
+        web:
+          url: http://orders-api-canary:8080/health/deployment
+          timeoutSeconds: 5
+          jsonPath: "{$.ok}"

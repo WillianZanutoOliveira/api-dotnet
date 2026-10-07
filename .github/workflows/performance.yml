@@ -1,0 +1,74 @@
+name: Performance Baseline
+
+on:
+  schedule:
+    - cron: "41 4 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-baseline
+  cancel-in-progress: false
+
+jobs:
+  orders-baseline:
+    name: Orders k6 baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Prepare local environment
+        run: cp .env.example .env
+
+      - name: Start secure platform
+        run: docker compose -f docker-compose.yml -f docker-compose.vault.yml up -d --build orders-api inventory-service payments-service notifications-service
+
+      - name: Wait for Keycloak and Orders
+        shell: bash
+        run: |
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://localhost:8180/realms/distributed-commerce/.well-known/openid-configuration >/dev/null               && curl -fsS http://localhost:8081/health >/dev/null; then
+              exit 0
+            fi
+
+            echo "Waiting for performance stack ($attempt/90)..."
+            sleep 2
+          done
+
+          echo "Performance stack did not become healthy." >&2
+          exit 1
+
+      - name: Obtain local benchmark token
+        id: token
+        shell: bash
+        run: |
+          token="$(
+            curl -fsS -X POST               http://localhost:8180/realms/distributed-commerce/protocol/openid-connect/token               -H "Content-Type: application/x-www-form-urlencoded"               --data-urlencode "grant_type=password"               --data-urlencode "client_id=commerce-cli"               --data-urlencode "username=demo-customer"               --data-urlencode "password=local-demo-only"               | jq -er '.access_token'
+          )"
+
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+      - name: Setup k6
+        uses: grafana/setup-k6-action@db07bd9765aac508ef18982e52ab937fe633a065 # v1.2.1
+        with:
+          k6-version: "2.3.0"
+
+      - name: Run Orders performance baseline
+        env:
+          K6_ACCESS_TOKEN: ${{ steps.token.outputs.token }}
+          ORDERS_API_BASE: http://localhost:8081
+        run: k6 run tests/performance/orders-baseline.js
+
+      - name: Performance stack logs
+        if: failure()
+        run: docker compose -f docker-compose.yml -f docker-compose.vault.yml logs --no-color orders-api rabbitmq orders-db vault vault-init
+
+      - name: Stop performance stack
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.vault.yml down -v --remove-orphans

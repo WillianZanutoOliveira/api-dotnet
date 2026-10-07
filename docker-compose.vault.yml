@@ -1,0 +1,258 @@
+services:
+  vault:
+    image: hashicorp/vault:1.21.4
+    command: ["server", "-dev"]
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID}
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+    healthcheck:
+      test: ["CMD-SHELL", "VAULT_ADDR=http://127.0.0.1:8200 vault status >/dev/null 2>&1"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    ports:
+      - "8200:8200"
+
+  vault-init:
+    image: hashicorp/vault:1.21.4
+    entrypoint: ["/bin/sh", "/bootstrap/vault-init.sh"]
+    environment:
+      VAULT_ADDR: "http://vault:8200"
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+      VAULT_TOKEN_FILE_OWNER: "1654:1654"
+    depends_on:
+      vault:
+        condition: service_healthy
+      orders-db:
+        condition: service_healthy
+      inventory-db:
+        condition: service_healthy
+      payments-db:
+        condition: service_healthy
+    volumes:
+      - ./deploy/vault/vault-init.sh:/bootstrap/vault-init.sh:ro
+      - vault-orders-token:/tokens/orders
+      - vault-inventory-token:/tokens/inventory
+      - vault-payments-token:/tokens/payments
+      - vault-notifications-token:/tokens/notifications
+      - vault-orders-migrator-token:/tokens/orders-migrator
+      - vault-inventory-migrator-token:/tokens/inventory-migrator
+      - vault-payments-migrator-token:/tokens/payments-migrator
+
+  orders-db:
+    volumes:
+      - ./deploy/postgres/orders-init.sql:/docker-entrypoint-initdb.d/10-runtime-role.sql:ro
+
+  inventory-db:
+    volumes:
+      - ./deploy/postgres/inventory-init.sql:/docker-entrypoint-initdb.d/10-runtime-role.sql:ro
+
+  payments-db:
+    volumes:
+      - ./deploy/postgres/payments-init.sql:/docker-entrypoint-initdb.d/10-runtime-role.sql:ro
+
+  orders-migrator:
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      ConnectionStrings__orders-db: ""
+      Vault__Address: "http://vault:8200"
+      Vault__TokenFile: "/run/vault/token"
+      Vault__DatabaseRole: "orders-migration"
+      Vault__DatabaseConnectionStringName: "orders-db"
+      Vault__DatabaseHost: "orders-db"
+      Vault__DatabasePort: "5432"
+      Vault__DatabaseName: "orders"
+      Vault__DatabaseRuntimeRole: "orders_migrator"
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+    volumes:
+      - vault-orders-migrator-token:/run/vault:ro
+
+  inventory-migrator:
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      ConnectionStrings__inventory-db: ""
+      Vault__Address: "http://vault:8200"
+      Vault__TokenFile: "/run/vault/token"
+      Vault__DatabaseRole: "inventory-migration"
+      Vault__DatabaseConnectionStringName: "inventory-db"
+      Vault__DatabaseHost: "inventory-db"
+      Vault__DatabasePort: "5432"
+      Vault__DatabaseName: "inventory"
+      Vault__DatabaseRuntimeRole: "inventory_migrator"
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+    volumes:
+      - vault-inventory-migrator-token:/run/vault:ro
+
+  payments-migrator:
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      ConnectionStrings__payments-db: ""
+      Vault__Address: "http://vault:8200"
+      Vault__TokenFile: "/run/vault/token"
+      Vault__DatabaseRole: "payments-migration"
+      Vault__DatabaseConnectionStringName: "payments-db"
+      Vault__DatabaseHost: "payments-db"
+      Vault__DatabasePort: "5432"
+      Vault__DatabaseName: "payments"
+      Vault__DatabaseRuntimeRole: "payments_migrator"
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+    volumes:
+      - vault-payments-migrator-token:/run/vault:ro
+
+  api-gateway:
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+
+  orders-api:
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      ConnectionStrings__orders-db: ""
+      RabbitMq__Username: ""
+      RabbitMq__Password: ""
+      Vault__Address: "http://vault:8200"
+      Vault__TokenFile: "/run/vault/token"
+      Vault__SecretPath: "platform/orders"
+      Vault__DatabaseRole: "orders-app"
+      Vault__DatabaseConnectionStringName: "orders-db"
+      Vault__DatabaseHost: "orders-db"
+      Vault__DatabasePort: "5432"
+      Vault__DatabaseName: "orders"
+      Vault__DatabaseRuntimeRole: "orders_runtime"
+      Vault__LeaseRenewalIntervalSeconds: "5"
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+      orders-migrator:
+        condition: service_completed_successfully
+    volumes:
+      - vault-orders-token:/run/vault:ro
+
+  inventory-service:
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      ConnectionStrings__inventory-db: ""
+      RabbitMq__Username: ""
+      RabbitMq__Password: ""
+      Vault__Address: "http://vault:8200"
+      Vault__TokenFile: "/run/vault/token"
+      Vault__SecretPath: "platform/inventory"
+      Vault__DatabaseRole: "inventory-app"
+      Vault__DatabaseConnectionStringName: "inventory-db"
+      Vault__DatabaseHost: "inventory-db"
+      Vault__DatabasePort: "5432"
+      Vault__DatabaseName: "inventory"
+      Vault__DatabaseRuntimeRole: "inventory_runtime"
+      Vault__LeaseRenewalIntervalSeconds: "5"
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+      inventory-migrator:
+        condition: service_completed_successfully
+    volumes:
+      - vault-inventory-token:/run/vault:ro
+
+  payments-service:
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      ConnectionStrings__payments-db: ""
+      RabbitMq__Username: ""
+      RabbitMq__Password: ""
+      Vault__Address: "http://vault:8200"
+      Vault__TokenFile: "/run/vault/token"
+      Vault__SecretPath: "platform/payments"
+      Vault__DatabaseRole: "payments-app"
+      Vault__DatabaseConnectionStringName: "payments-db"
+      Vault__DatabaseHost: "payments-db"
+      Vault__DatabasePort: "5432"
+      Vault__DatabaseName: "payments"
+      Vault__DatabaseRuntimeRole: "payments_runtime"
+      Vault__LeaseRenewalIntervalSeconds: "5"
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+      payments-migrator:
+        condition: service_completed_successfully
+    volumes:
+      - vault-payments-token:/run/vault:ro
+
+  notifications-service:
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      RabbitMq__Username: ""
+      RabbitMq__Password: ""
+      Vault__Address: "http://vault:8200"
+      Vault__TokenFile: "/run/vault/token"
+      Vault__SecretPath: "platform/notifications"
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+    volumes:
+      - vault-notifications-token:/run/vault:ro
+
+volumes:
+  vault-orders-token:
+  vault-inventory-token:
+  vault-payments-token:
+  vault-notifications-token:
+  vault-orders-migrator-token:
+  vault-inventory-migrator-token:
+  vault-payments-migrator-token:
