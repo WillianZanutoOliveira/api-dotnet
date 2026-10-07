@@ -106,8 +106,9 @@ jobs:
       - name: Verify migration ownership and runtime least privilege
         run: |
           migration_count="$(
-            docker compose -f docker-compose.yml -f docker-compose.vault.yml exec -T orders-db \
-              sh -lc 'psql -U "$POSTGRES_USER" -d orders -Atc "SELECT COUNT(*) FROM \"__EFMigrationsHistory\";"'
+            docker compose -f docker-compose.yml -f docker-compose.vault.yml exec -T \
+              -e SQL='SELECT COUNT(*) FROM "__EFMigrationsHistory";' \
+              orders-db sh -lc 'psql -U "$POSTGRES_USER" -d orders -Atc "$SQL"'
           )"
 
           if [ "$migration_count" -lt 1 ]; then
@@ -116,13 +117,15 @@ jobs:
           fi
 
           runtime_can_create="$(
-            docker compose -f docker-compose.yml -f docker-compose.vault.yml exec -T orders-db \
-              sh -lc 'psql -U "$POSTGRES_USER" -d orders -Atc "SELECT has_schema_privilege('\''orders_runtime'\'', '\''public'\'', '\''CREATE'\');"'
+            docker compose -f docker-compose.yml -f docker-compose.vault.yml exec -T \
+              -e SQL="SELECT has_schema_privilege('orders_runtime', 'public', 'CREATE');" \
+              orders-db sh -lc 'psql -U "$POSTGRES_USER" -d orders -Atc "$SQL"'
           )"
 
           migrator_can_create="$(
-            docker compose -f docker-compose.yml -f docker-compose.vault.yml exec -T orders-db \
-              sh -lc 'psql -U "$POSTGRES_USER" -d orders -Atc "SELECT has_schema_privilege('\''orders_migrator'\'', '\''public'\'', '\''CREATE'\');"'
+            docker compose -f docker-compose.yml -f docker-compose.vault.yml exec -T \
+              -e SQL="SELECT has_schema_privilege('orders_migrator', 'public', 'CREATE');" \
+              orders-db sh -lc 'psql -U "$POSTGRES_USER" -d orders -Atc "$SQL"'
           )"
 
           if [ "$runtime_can_create" != "f" ]; then
@@ -136,8 +139,9 @@ jobs:
           fi
 
           migration_login="$(
-            docker compose -f docker-compose.yml -f docker-compose.vault.yml exec -T orders-db \
-              sh -lc 'psql -U "$POSTGRES_USER" -d orders -Atc "SELECT member_role.rolname FROM pg_auth_members membership JOIN pg_roles granted_role ON granted_role.oid = membership.roleid JOIN pg_roles member_role ON member_role.oid = membership.member WHERE granted_role.rolname = '\''orders_migrator'\'' AND member_role.rolcanlogin ORDER BY member_role.rolname LIMIT 1;"'
+            docker compose -f docker-compose.yml -f docker-compose.vault.yml exec -T \
+              -e SQL="SELECT member_role.rolname FROM pg_auth_members membership JOIN pg_roles granted_role ON granted_role.oid = membership.roleid JOIN pg_roles member_role ON member_role.oid = membership.member WHERE granted_role.rolname = 'orders_migrator' AND member_role.rolcanlogin ORDER BY member_role.rolname LIMIT 1;" \
+              orders-db sh -lc 'psql -U "$POSTGRES_USER" -d orders -Atc "$SQL"'
           )"
 
           if [ -z "$migration_login" ]; then
@@ -155,8 +159,9 @@ jobs:
       - name: Verify dynamic PostgreSQL credentials
         run: |
           dynamic_role="$(
-            docker compose -f docker-compose.yml -f docker-compose.vault.yml exec -T orders-db \
-              sh -lc 'psql -U "$POSTGRES_USER" -d orders -Atc "SELECT member_role.rolname FROM pg_auth_members membership JOIN pg_roles granted_role ON granted_role.oid = membership.roleid JOIN pg_roles member_role ON member_role.oid = membership.member WHERE granted_role.rolname = '\''orders_runtime'\'' AND member_role.rolcanlogin ORDER BY member_role.rolname LIMIT 1;"'
+            docker compose -f docker-compose.yml -f docker-compose.vault.yml exec -T \
+              -e SQL="SELECT member_role.rolname FROM pg_auth_members membership JOIN pg_roles granted_role ON granted_role.oid = membership.roleid JOIN pg_roles member_role ON member_role.oid = membership.member WHERE granted_role.rolname = 'orders_runtime' AND member_role.rolcanlogin ORDER BY member_role.rolname LIMIT 1;" \
+              orders-db sh -lc 'psql -U "$POSTGRES_USER" -d orders -Atc "$SQL"'
           )"
 
           if [ -z "$dynamic_role" ]; then
