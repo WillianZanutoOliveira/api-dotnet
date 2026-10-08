@@ -7,12 +7,12 @@
 ### .NET 10 · Aspire · Clean Architecture · YARP · RabbitMQ · Keycloak · Vault · OpenTelemetry · AI Engineering Harness
 
 [![CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)
-![Services](https://img.shields.io/badge/Services-4-2563EB)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-3%20Databases-4169E1?logo=postgresql&logoColor=white)
+![Services](https://img.shields.io/badge/Services-5-2563EB)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4%20Databases-4169E1?logo=postgresql&logoColor=white)
 ![RabbitMQ](https://img.shields.io/badge/RabbitMQ-MassTransit-FF6600?logo=rabbitmq&logoColor=white)
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-OTLP--ready-7C3AED)
 ![Aspire](https://img.shields.io/badge/Local%20Dev-Aspire%2013.6-512BD4?logo=dotnet&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-6%20Images-2496ED?logo=docker&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-7%20Images-2496ED?logo=docker&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-Examples-326CE5?logo=kubernetes&logoColor=white)
 ![Keycloak](https://img.shields.io/badge/Identity-Keycloak-4D4D4D?logo=keycloak&logoColor=white)
 ![Vault](https://img.shields.io/badge/Secrets-Vault-FFEC6E?logo=vault&logoColor=black)
@@ -80,8 +80,11 @@ flowchart LR
     Client[Client] --> Keycloak[Keycloak / OIDC]
     Keycloak --> Gateway[YARP API Gateway]
     Gateway --> Orders[Orders API]
+    Gateway --> Customers[Customers API / PF-PJ registry]
 
     Orders --> ODB[(Orders PostgreSQL)]
+    Customers --> CDB[(Customers PostgreSQL)]
+    Customers -->|CEP v2| BrasilAPI[BrasilAPI]
     Orders -- OrderSubmitted --> Rabbit[(RabbitMQ)]
 
     Rabbit --> Inventory[Inventory Service]
@@ -116,6 +119,7 @@ More detail: [Architecture documentation](docs/architecture.en.md) · [platform 
 | --- | --- | --- | --- |
 | Keycloak | identity, OIDC/OAuth 2.0 authentication and realm roles | IdP internal state | issues JWTs to clients |
 | YARP API Gateway | HTTP ingress, JWT validation, rate limiting and reverse proxy | stateless | forwards authenticated requests |
+| Customers API | administrative individual/company registry, contacts and addresses | PostgreSQL | JWT/RBAC + BrasilAPI CEP v2 |
 | Orders API | order lifecycle, resource authorization and customer-facing API | PostgreSQL | publishes + consumes events |
 | Inventory Service | idempotent stock reservation decision | PostgreSQL | consumes + publishes events |
 | Payments Service | payment authorization decision | PostgreSQL | consumes + publishes events |
@@ -219,6 +223,27 @@ Client
 
 Authentication is synchronous only at the HTTP edge. Collaboration between business bounded contexts remains asynchronous through RabbitMQ.
 
+## Individual/company registry and addresses
+
+The **Customers** bounded context provides a complete admin-only CRUD without sharing the Orders database:
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/customers` | create an individual or company |
+| `GET` | `/api/customers/{id}` | retrieve by id |
+| `GET` | `/api/customers` | paginate/filter by text, document and person type |
+| `PUT` | `/api/customers/{id}` | update registration, status and addresses |
+| `DELETE` | `/api/customers/{id}` | delete the aggregate |
+| `GET` | `/api/customers/address/cep/{cep}` | resolve a Brazilian postal code via BrasilAPI v2 |
+
+The model distinguishes `Individual` and `Company`, validates CPF/CNPJ check digits locally, normalizes documents/phones, and requires 1–10 addresses with exactly one primary address. Documents are unique in PostgreSQL. CPF/CNPJ values are **never sent to third-party services**; only the postal code is externally resolved.
+
+BrasilAPI v2 is hidden behind `IPostalCodeLookup`, so the domain is provider-agnostic. The typed HTTP client inherits Service Defaults resilience; provider failures map to `503`, unknown CEPs to `404`, and coordinates are optional.
+
+See [ADR-0013](docs/adr/0013-customers-pf-pj-brasilapi-cep.en.md).
+
+---
+
 ## Running locally
 
 ### Recommended path: .NET Aspire
@@ -234,7 +259,7 @@ Start the complete platform with one command:
 dotnet run --project src/Platform/DistributedCommerce.AppHost
 ```
 
-The AppHost starts PostgreSQL, RabbitMQ, Keycloak and Vault, bootstraps dynamic credentials, launches the Gateway + four services as local projects and opens the Aspire Dashboard for logs, traces, metrics, endpoints and resource state.
+The AppHost starts PostgreSQL, RabbitMQ, Keycloak and Vault, bootstraps dynamic credentials, launches the Gateway + five services as local projects and opens the Aspire Dashboard for logs, traces, metrics, endpoints and resource state.
 
 Local infrastructure passwords are generated through the Aspire secret store. Workload-scoped Vault tokens are written only under `.aspire/vault-tokens`, which is excluded from Git.
 

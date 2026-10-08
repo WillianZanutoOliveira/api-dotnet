@@ -35,6 +35,7 @@ flowchart TB
 
     subgraph Business["Bounded contexts"]
         Orders[Orders API]
+        Customers[Customers API]
         Inventory[Inventory Service]
         Payments[Payments Service]
         Notifications[Notifications Service]
@@ -46,6 +47,7 @@ flowchart TB
 
     subgraph Persistence["Database per service"]
         OrdersDb[(Orders PostgreSQL)]
+        CustomersDb[(Customers PostgreSQL)]
         InventoryDb[(Inventory PostgreSQL)]
         PaymentsDb[(Payments PostgreSQL)]
     end
@@ -66,8 +68,11 @@ flowchart TB
     Keycloak -->|"JWT access token"| Client
     Client -->|"Bearer JWT"| Gateway
     Gateway -->|"validated JWT"| Orders
+    Gateway -->|"admin JWT"| Customers
 
     Orders --> OrdersDb
+    Customers --> CustomersDb
+    Customers -->|"CEP v2"| BrasilAPI[BrasilAPI]
     Orders -->|"OrderSubmitted"| Rabbit
     Rabbit --> Inventory
     Inventory --> InventoryDb
@@ -79,17 +84,20 @@ flowchart TB
     Rabbit --> Notifications
 
     Vault -. "runtime credentials" .-> Orders
+    Vault -. "runtime credentials" .-> Customers
     Vault -. "runtime credentials" .-> Inventory
     Vault -. "runtime credentials" .-> Payments
     Vault -. "RabbitMQ secret" .-> Notifications
     Vault -. "migration credential" .-> Migrator
 
     Migrator -. "DDL / migrations" .-> OrdersDb
+    Migrator -. "DDL / migrations" .-> CustomersDb
     Migrator -. "DDL / migrations" .-> InventoryDb
     Migrator -. "DDL / migrations" .-> PaymentsDb
 
     Gateway -. "OTLP" .-> Collector
     Orders -. "OTLP" .-> Collector
+    Customers -. "OTLP" .-> Collector
     Inventory -. "OTLP" .-> Collector
     Payments -. "OTLP" .-> Collector
     Notifications -. "OTLP" .-> Collector
@@ -100,7 +108,7 @@ flowchart TB
     Prometheus --> Grafana
 ```
 
-The synchronous path ends at Orders. After the authenticated HTTP command, business collaboration between bounded contexts remains asynchronous through RabbitMQ.
+The synchronous checkout path ends at Orders. Administrative registration follows an independent Gateway → Customers path; checkout collaboration between bounded contexts remains asynchronous through RabbitMQ.
 
 
 ## Boundaries
@@ -113,15 +121,21 @@ Keycloak is an identity platform component rather than a business bounded contex
 
 ### YARP API Gateway
 
-The Gateway is the public HTTP ingress. It validates JWTs at the edge, applies identity-partitioned rate limiting and forwards authenticated calls to Orders.
+The Gateway is the public HTTP ingress. It validates JWTs at the edge, applies identity-partitioned rate limiting and forwards authenticated calls to Orders or Customers.
 
-The Gateway is not the only security boundary: Orders validates the JWT again.
+The Gateway is not the only security boundary: Orders and Customers validate the JWT again.
 
 ### Orders
 
 Orders owns the customer-facing order aggregate and is the only service that can change order lifecycle state.
 
 It exposes synchronous HTTP commands/queries but collaborates with other bounded contexts through integration events.
+
+### Customers
+
+Customers is the admin-only bounded context for individual/company registration. It owns a dedicated PostgreSQL database, validates CPF/CNPJ locally, stores contacts and up to ten addresses with exactly one primary address.
+
+Registration operations require the `admin` role. Postal-code lookup uses BrasilAPI v2 through the application port `IPostalCodeLookup`, keeping the domain provider-agnostic. CPF/CNPJ values are never sent to BrasilAPI.
 
 ### Inventory
 
@@ -145,10 +159,10 @@ This demonstrates how additional capabilities can subscribe to business events w
 
 ```mermaid
 flowchart BT
-    Domain[Orders.Domain]
-    Application[Orders.Application]
-    Infrastructure[Orders.Infrastructure]
-    Api[Orders.Api]
+    Domain[Orders.Domain / Customers.Domain]
+    Application[Orders.Application / Customers.Application]
+    Infrastructure[Orders.Infrastructure / Customers.Infrastructure]
+    Api[Orders.Api / Customers.Api]
 
     Application --> Domain
     Infrastructure --> Application
@@ -157,7 +171,7 @@ flowchart BT
     Api --> Infrastructure
 ```
 
-The core domain has no reference to:
+The Orders and Customers core domains have no reference to:
 
 - EF Core;
 - MassTransit;
@@ -274,7 +288,7 @@ See [ADR-0004](adr/0004-identity-keycloak.en.md).
 
 ## HTTP hardening and pentest readiness
 
-The HTTP edge and Orders share a security baseline through `ServiceDefaults`:
+The HTTP edge, Orders and Customers share a security baseline through `ServiceDefaults`:
 
 - Kestrel `Server` header disabled;
 - 1 MiB body limit;
@@ -285,7 +299,7 @@ The HTTP edge and Orders share a security baseline through `ServiceDefaults`:
 - TRACE/CONNECT rejected;
 - authenticated responses marked `no-store`.
 
-Orders uses strict JSON handling: unmapped properties are rejected, depth is bounded and business collections/numeric values have explicit limits.
+Orders and Customers use strict JSON handling: unmapped properties are rejected, depth is bounded and business collections/numeric values have explicit limits.
 
 For BOLA, customer reads are not implemented as a global `GetById` followed by an in-memory comparison. PostgreSQL queries are scoped by:
 
@@ -301,13 +315,13 @@ See [security posture](security-posture.en.md).
 
 ## Secrets management
 
-The secure profile uses two Vault mechanisms. KV v2 stores the remaining static demo secrets, while the Database Secrets Engine issues dynamic PostgreSQL credentials for Orders, Inventory and Payments.
+The secure profile uses two Vault mechanisms. KV v2 stores the remaining static demo secrets, while the Database Secrets Engine issues dynamic PostgreSQL credentials for Orders, Customers, Inventory and Payments.
 
 Each workload receives an independent file-mounted token. For database access, the token can only read `database/creds/<service>-app` and renew leases under the same prefix. Vault returns `username`, `password`, `lease_id`, TTL and `renewable`; the connection string is built only in memory.
 
 ### Stable roles and ephemeral logins
 
-Each database has a stable `NOLOGIN` role (`orders_runtime`, `inventory_runtime`, `payments_runtime`). Vault creates an ephemeral login and grants membership only in that role. PostgreSQL sessions switch role through connection options, separating temporary identity from persistent authorization.
+Each database has a stable `NOLOGIN` role (`orders_runtime`, `customers_runtime`, `inventory_runtime`, `payments_runtime`). Vault creates an ephemeral login and grants membership only in that role. PostgreSQL sessions switch role through connection options, separating temporary identity from persistent authorization.
 
 The lease is renewed in the background. Renewal failure terminates the host so the orchestrator can force a new authentication and credential cycle.
 
@@ -327,6 +341,7 @@ Aspire AppHost
 │   ├── vault-init
 │   ├── RabbitMQ
 │   ├── Orders PostgreSQL
+│   ├── Customers PostgreSQL
 │   ├── Inventory PostgreSQL
 │   └── Payments PostgreSQL
 │
@@ -334,6 +349,7 @@ Aspire AppHost
     ├── DatabaseMigrator (one-shot)
     ├── YARP API Gateway
     ├── Orders API
+    ├── Customers API
     ├── Inventory
     ├── Payments
     └── Notifications
@@ -344,7 +360,7 @@ Running .NET workloads as local projects improves the inner loop through breakpo
 The simplification is operational only. The AppHost preserves:
 
 - Keycloak authentication;
-- the Keycloak → YARP → Orders flow with double JWT validation;
+- the Keycloak → YARP → Orders/Customers flows with double JWT validation;
 - RabbitMQ;
 - Vault KV v2;
 - Vault Database Secrets Engine;
