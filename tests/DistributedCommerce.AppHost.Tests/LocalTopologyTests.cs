@@ -31,6 +31,9 @@ public sealed class LocalTopologyTests
         var requiredPlatformResources = new[]
         {
             "api-gateway",
+            "customers-api",
+            "customers-db",
+            "customers-migrator",
             "inventory-db",
             "inventory-migrator",
             "inventory-service",
@@ -49,6 +52,7 @@ public sealed class LocalTopologyTests
 
         var requiredSecretResources = new[]
         {
+            "customers-db-password",
             "inventory-db-password",
             "keycloak-admin-password",
             "orders-db-password",

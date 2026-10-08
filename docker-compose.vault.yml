@@ -29,11 +29,17 @@ services:
     depends_on:
       vault:
         condition: service_healthy
-      orders-db:
+      customers-db:
+    volumes:
+      - ./deploy/postgres/customers-init.sql:/docker-entrypoint-initdb.d/10-runtime-role.sql:ro
+
+  orders-db:
         condition: service_healthy
       inventory-db:
         condition: service_healthy
       payments-db:
+        condition: service_healthy
+      customers-db:
         condition: service_healthy
     volumes:
       - ./deploy/vault/vault-init.sh:/bootstrap/vault-init.sh:ro
@@ -44,6 +50,8 @@ services:
       - vault-orders-migrator-token:/tokens/orders-migrator
       - vault-inventory-migrator-token:/tokens/inventory-migrator
       - vault-payments-migrator-token:/tokens/payments-migrator
+      - vault-customers-token:/tokens/customers
+      - vault-customers-migrator-token:/tokens/customers-migrator
 
   orders-db:
     volumes:
@@ -129,6 +137,30 @@ services:
     volumes:
       - vault-payments-migrator-token:/run/vault:ro
 
+  customers-migrator:
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      ConnectionStrings__customers-db: ""
+      Vault__Address: "http://vault:8200"
+      Vault__TokenFile: "/run/vault/token"
+      Vault__DatabaseRole: "customers-migration"
+      Vault__DatabaseConnectionStringName: "customers-db"
+      Vault__DatabaseHost: "customers-db"
+      Vault__DatabasePort: "5432"
+      Vault__DatabaseName: "customers"
+      Vault__DatabaseRuntimeRole: "customers_migrator"
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+    volumes:
+      - vault-customers-migrator-token:/run/vault:ro
+
   api-gateway:
     read_only: true
     cap_drop:
@@ -137,6 +169,33 @@ services:
       - no-new-privileges:true
     tmpfs:
       - /tmp:size=64m,mode=1777
+
+  customers-api:
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    environment:
+      ConnectionStrings__customers-db: ""
+      Vault__Address: "http://vault:8200"
+      Vault__TokenFile: "/run/vault/token"
+      Vault__DatabaseRole: "customers-app"
+      Vault__DatabaseConnectionStringName: "customers-db"
+      Vault__DatabaseHost: "customers-db"
+      Vault__DatabasePort: "5432"
+      Vault__DatabaseName: "customers"
+      Vault__DatabaseRuntimeRole: "customers_runtime"
+      Vault__LeaseRenewalIntervalSeconds: "5"
+    depends_on:
+      vault-init:
+        condition: service_completed_successfully
+      customers-migrator:
+        condition: service_completed_successfully
+    volumes:
+      - vault-customers-token:/run/vault:ro
 
   orders-api:
     read_only: true
@@ -256,3 +315,5 @@ volumes:
   vault-orders-migrator-token:
   vault-inventory-migrator-token:
   vault-payments-migrator-token:
+  vault-customers-token:
+  vault-customers-migrator-token:
