@@ -29,11 +29,11 @@ public sealed class BrasilApiPostalCodeLookup(HttpClient httpClient) : IPostalCo
             ?? throw new HttpRequestException("BrasilAPI returned an empty CEP response.");
 
         return new PostalCodeLookupResult(
-            Address.NormalizePostalCode(payload.Cep),
+            Address.NormalizePostalCode(Required(payload.Cep, "cep")),
             payload.Street?.Trim() ?? string.Empty,
             EmptyToNull(payload.Neighborhood),
-            payload.City.Trim(),
-            payload.State.Trim().ToUpperInvariant(),
+            Required(payload.City, "city"),
+            Required(payload.State, "state").ToUpperInvariant(),
             EmptyToNull(payload.Ibge?.City),
             ParseCoordinate(payload.Location?.Coordinates?.Latitude),
             ParseCoordinate(payload.Location?.Coordinates?.Longitude),
@@ -49,13 +49,18 @@ public sealed class BrasilApiPostalCodeLookup(HttpClient httpClient) : IPostalCo
             ? coordinate
             : null;
 
+    private static string Required(string? value, string field) =>
+        string.IsNullOrWhiteSpace(value)
+            ? throw new HttpRequestException($"BrasilAPI response is missing required field '{field}'.")
+            : value.Trim();
+
     private static string? EmptyToNull(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private sealed record BrasilApiCepResponse(
-        [property: JsonPropertyName("cep")] string Cep,
-        [property: JsonPropertyName("state")] string State,
-        [property: JsonPropertyName("city")] string City,
+        [property: JsonPropertyName("cep")] string? Cep,
+        [property: JsonPropertyName("state")] string? State,
+        [property: JsonPropertyName("city")] string? City,
         [property: JsonPropertyName("neighborhood")] string? Neighborhood,
         [property: JsonPropertyName("street")] string? Street,
         [property: JsonPropertyName("service")] string? Service,

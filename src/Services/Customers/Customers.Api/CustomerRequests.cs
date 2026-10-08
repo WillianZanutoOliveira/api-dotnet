@@ -25,7 +25,7 @@ public sealed record CreateCustomerRequest(
     string? MunicipalRegistration,
     string Email,
     string Phone,
-    IReadOnlyCollection<AddressRequest> Addresses);
+    IReadOnlyCollection<AddressRequest?>? Addresses);
 
 public sealed record UpdateCustomerRequest(
     string PersonType,
@@ -39,4 +39,4 @@ public sealed record UpdateCustomerRequest(
     string Email,
     string Phone,
     bool IsActive,
-    IReadOnlyCollection<AddressRequest> Addresses);
+    IReadOnlyCollection<AddressRequest?>? Addresses);

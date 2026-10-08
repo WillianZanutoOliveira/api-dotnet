@@ -92,7 +92,7 @@ customers.MapGet(
     .RequireAuthorization(SecurityPolicies.CustomersRead);
 
 customers.MapPost(
-    "/",
+    "",
     async (CreateCustomerRequest request, CustomerService service, CancellationToken cancellationToken) =>
     {
         try
@@ -121,7 +121,7 @@ customers.MapGet(
     .RequireAuthorization(SecurityPolicies.CustomersRead);
 
 customers.MapGet(
-    "/",
+    "",
     async (
         string? search,
         string? document,
@@ -200,7 +200,7 @@ static CreateCustomerCommand Map(CreateCustomerRequest request) =>
         request.MunicipalRegistration,
         request.Email,
         request.Phone,
-        request.Addresses.Select(Map).ToArray());
+        MapAddresses(request.Addresses));
 
 static UpdateCustomerCommand Map(UpdateCustomerRequest request) =>
     new(
@@ -215,7 +215,21 @@ static UpdateCustomerCommand Map(UpdateCustomerRequest request) =>
         request.Email,
         request.Phone,
         request.IsActive,
-        request.Addresses.Select(Map).ToArray());
+        MapAddresses(request.Addresses));
+
+static IReadOnlyCollection<AddressInput> MapAddresses(
+    IReadOnlyCollection<AddressRequest?>? addresses)
+{
+    if (addresses is null)
+        return [];
+
+    return addresses
+        .Select(address =>
+            address is null
+                ? throw new ArgumentException("Address entries cannot be null.", nameof(addresses))
+                : Map(address))
+        .ToArray();
+}
 
 static AddressInput Map(AddressRequest request) =>
     new(

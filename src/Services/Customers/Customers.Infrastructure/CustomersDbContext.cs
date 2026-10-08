@@ -1,6 +1,7 @@
 using Customers.Application;
 using Customers.Domain;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Customers.Infrastructure;
 
@@ -9,6 +10,23 @@ public sealed class CustomersDbContext(DbContextOptions<CustomersDbContext> opti
 {
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Address> Addresses => Set<Address>();
+
+    public override async Task<int> SaveChangesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await base.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception)
+            when (exception.InnerException is PostgresException
+            {
+                SqlState: PostgresErrorCodes.UniqueViolation
+            })
+        {
+            throw new DuplicateCustomerDocumentException();
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

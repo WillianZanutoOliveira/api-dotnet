@@ -1,4 +1,5 @@
 using System.Net.Mail;
+using System.Text;
 
 namespace Customers.Domain;
 
@@ -197,12 +198,26 @@ public sealed class Customer
         if (string.IsNullOrWhiteSpace(value))
             throw new ArgumentException("Phone is required.", nameof(value));
 
-        var digits = new string(value.Where(char.IsAsciiDigit).ToArray());
+        var digits = new StringBuilder(value.Length);
+
+        foreach (var character in value)
+        {
+            if (char.IsAsciiDigit(character))
+            {
+                digits.Append(character);
+                continue;
+            }
+
+            if (character is '+' or '(' or ')' or '-' || char.IsWhiteSpace(character))
+                continue;
+
+            throw new ArgumentException("Phone contains unsupported characters.", nameof(value));
+        }
 
         if (digits.Length is < 10 or > 13)
             throw new ArgumentException("Phone must contain between 10 and 13 digits.", nameof(value));
 
-        return digits;
+        return digits.ToString();
     }
 
     private static string Required(string value, string parameterName, int maxLength)

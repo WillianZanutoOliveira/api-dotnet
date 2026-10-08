@@ -23,7 +23,7 @@ if grep -R --include='*.cs' -nE   '(AllowAnyOrigin|SetIsOriginAllowed\([^)]*true
   exit 1
 fi
 
-for dockerfile in   src/Gateway/ApiGateway/Dockerfile   src/Platform/DatabaseMigrator/Dockerfile   src/Services/Orders/Orders.Api/Dockerfile   src/Services/Inventory/Inventory.Service/Dockerfile   src/Services/Payments/Payments.Service/Dockerfile   src/Services/Notifications/Notifications.Service/Dockerfile; do
+for dockerfile in   src/Gateway/ApiGateway/Dockerfile   src/Platform/DatabaseMigrator/Dockerfile   src/Services/Customers/Customers.Api/Dockerfile   src/Services/Orders/Orders.Api/Dockerfile   src/Services/Inventory/Inventory.Service/Dockerfile   src/Services/Payments/Payments.Service/Dockerfile   src/Services/Notifications/Notifications.Service/Dockerfile; do
   grep -Fq 'USER $APP_UID' "$dockerfile"
 done
 
