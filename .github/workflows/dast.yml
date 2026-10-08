@@ -9,9 +9,11 @@ on:
       - "docker-compose*.yml"
       - "deploy/keycloak/**"
       - "scripts/security-smoke.sh"
+      - "scripts/customers-smoke.sh"
       - "src/Gateway/**"
       - "src/BuildingBlocks/Security/**"
       - "src/BuildingBlocks/ServiceDefaults/**"
+      - "src/Services/Customers/**"
       - "src/Services/Orders/**"
   schedule:
     - cron: "31 3 * * 4"
@@ -28,7 +30,7 @@ jobs:
   zap-api:
     name: OWASP ZAP authenticated API scan
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
 
     steps:
       - name: Checkout
@@ -44,7 +46,7 @@ jobs:
           -f docker-compose.vault.yml
           -f docker-compose.dast.yml
           up -d --build
-          api-gateway inventory-service payments-service notifications-service
+          api-gateway customers-api inventory-service payments-service notifications-service
 
       - name: Wait for security-test surface
         shell: bash
@@ -52,7 +54,8 @@ jobs:
           for attempt in $(seq 1 90); do
             if curl -fsS http://localhost:8180/realms/distributed-commerce/.well-known/openid-configuration >/dev/null \
               && curl -fsS http://localhost:8080/health >/dev/null \
-              && curl -fsS http://localhost:8081/openapi/v1.json >/dev/null; then
+              && curl -fsS http://localhost:8081/openapi/v1.json >/dev/null \
+              && curl -fsS http://localhost:8085/openapi/v1.json >/dev/null; then
               exit 0
             fi
 
@@ -63,38 +66,51 @@ jobs:
           echo "DAST stack did not become ready." >&2
           exit 1
 
-      - name: Obtain disposable authenticated token
-        id: token
+      - name: Obtain disposable authenticated tokens
+        id: tokens
         shell: bash
         run: |
-          token="$(
+          token_for() {
+            local username="$1"
+
             curl -fsS -X POST \
               http://localhost:8180/realms/distributed-commerce/protocol/openid-connect/token \
               -H "Content-Type: application/x-www-form-urlencoded" \
               --data-urlencode "grant_type=password" \
               --data-urlencode "client_id=commerce-cli" \
-              --data-urlencode "username=demo-customer" \
+              --data-urlencode "username=$username" \
               --data-urlencode "password=local-demo-only" \
               | jq -er '.access_token'
-          )"
+          }
 
-          echo "::add-mask::$token"
-          echo "token=$token" >> "$GITHUB_OUTPUT"
+          customer_token="$(token_for demo-customer)"
+          admin_token="$(token_for demo-admin)"
 
-      - name: Prepare Gateway OpenAPI target
+          echo "::add-mask::$customer_token"
+          echo "::add-mask::$admin_token"
+          echo "customer_token=$customer_token" >> "$GITHUB_OUTPUT"
+          echo "admin_token=$admin_token" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare Gateway OpenAPI targets
         run: |
           mkdir -p zap-work
           cp .zap/rules.tsv zap-work/rules.tsv
+
           curl -fsS http://localhost:8081/openapi/v1.json \
             | jq '.servers = [{"url":"http://127.0.0.1:8080/api"}]' \
-            > zap-work/zap-openapi.json
-          chmod 0777 zap-work
-          chmod 0644 zap-work/rules.tsv zap-work/zap-openapi.json
+            > zap-work/orders-openapi.json
 
-      - name: OWASP ZAP active API scan
+          curl -fsS http://localhost:8085/openapi/v1.json \
+            | jq 'del(.paths["/customers/address/cep/{postalCode}"]) | .servers = [{"url":"http://127.0.0.1:8080/api"}]' \
+            > zap-work/customers-openapi.json
+
+          chmod 0777 zap-work
+          chmod 0644 zap-work/rules.tsv zap-work/orders-openapi.json zap-work/customers-openapi.json
+
+      - name: OWASP ZAP Orders API scan
         env:
           ZAP_AUTH_HEADER: Authorization
-          ZAP_AUTH_HEADER_VALUE: Bearer ${{ steps.token.outputs.token }}
+          ZAP_AUTH_HEADER_VALUE: Bearer ${{ steps.tokens.outputs.customer_token }}
           ZAP_AUTH_HEADER_SITE: 127.0.0.1
         shell: bash
         run: |
@@ -105,12 +121,34 @@ jobs:
             -v "$PWD/zap-work:/zap/wrk/:rw" \
             ghcr.io/zaproxy/zaproxy:2.17.0 \
             zap-api-scan.py \
-              -t /zap/wrk/zap-openapi.json \
+              -t /zap/wrk/orders-openapi.json \
               -f openapi \
               -c /zap/wrk/rules.tsv \
-              -r zap-report.html \
-              -J zap-report.json \
-              -w zap-report.md \
+              -r orders-zap-report.html \
+              -J orders-zap-report.json \
+              -w orders-zap-report.md \
+              -T 10
+
+      - name: OWASP ZAP Customers API scan
+        env:
+          ZAP_AUTH_HEADER: Authorization
+          ZAP_AUTH_HEADER_VALUE: Bearer ${{ steps.tokens.outputs.admin_token }}
+          ZAP_AUTH_HEADER_SITE: 127.0.0.1
+        shell: bash
+        run: |
+          docker run --rm --network host \
+            -e ZAP_AUTH_HEADER \
+            -e ZAP_AUTH_HEADER_VALUE \
+            -e ZAP_AUTH_HEADER_SITE \
+            -v "$PWD/zap-work:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy:2.17.0 \
+            zap-api-scan.py \
+              -t /zap/wrk/customers-openapi.json \
+              -f openapi \
+              -c /zap/wrk/rules.tsv \
+              -r customers-zap-report.html \
+              -J customers-zap-report.json \
+              -w customers-zap-report.md \
               -T 10
 
       - name: Upload ZAP evidence
@@ -119,9 +157,12 @@ jobs:
         with:
           name: zap-api-security-report
           path: |
-            zap-work/zap-report.html
-            zap-work/zap-report.json
-            zap-work/zap-report.md
+            zap-work/orders-zap-report.html
+            zap-work/orders-zap-report.json
+            zap-work/orders-zap-report.md
+            zap-work/customers-zap-report.html
+            zap-work/customers-zap-report.json
+            zap-work/customers-zap-report.md
           if-no-files-found: ignore
           retention-days: 14
 
@@ -133,7 +174,7 @@ jobs:
           -f docker-compose.vault.yml
           -f docker-compose.dast.yml
           logs --no-color
-          api-gateway orders-api keycloak vault vault-init orders-migrator orders-db
+          api-gateway customers-api customers-migrator customers-db orders-api keycloak vault vault-init orders-migrator orders-db
 
       - name: Stop disposable security stack
         if: always()
