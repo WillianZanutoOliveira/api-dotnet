@@ -29,11 +29,7 @@ services:
     depends_on:
       vault:
         condition: service_healthy
-      customers-db:
-    volumes:
-      - ./deploy/postgres/customers-init.sql:/docker-entrypoint-initdb.d/10-runtime-role.sql:ro
-
-  orders-db:
+      orders-db:
         condition: service_healthy
       inventory-db:
         condition: service_healthy
@@ -64,6 +60,10 @@ services:
   payments-db:
     volumes:
       - ./deploy/postgres/payments-init.sql:/docker-entrypoint-initdb.d/10-runtime-role.sql:ro
+
+  customers-db:
+    volumes:
+      - ./deploy/postgres/customers-init.sql:/docker-entrypoint-initdb.d/10-runtime-role.sql:ro
 
   orders-migrator:
     read_only: true
