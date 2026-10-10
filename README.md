@@ -38,6 +38,9 @@ O sistema modela um fluxo de checkout dividido entre serviços implantáveis de 
 9. **HashiCorp Vault** fornece segredos e credenciais PostgreSQL dinâmicas separadas entre runtime e migration.
 10. **OpenTelemetry** envia traces e métricas para o stack de observabilidade.
 
+
+Além do checkout, a plataforma disponibiliza um **cadastro administrativo independente de pessoas físicas e jurídicas (Customers)**, com CRUD, CPF/CNPJ, contatos, endereços e consulta de CEP. Esse fluxo usa o mesmo Keycloak e Gateway, mas possui banco e limite de domínio próprios; não cria identidades automaticamente no Keycloak nem se acopla à mensageria de Orders.
+
 O projeto foca intencionalmente nas partes difíceis de sistemas distribuídos, em vez de trabalho de interface.
 
 ---
@@ -81,7 +84,7 @@ O objetivo é tornar visível, em um portfólio público, engenharia backend de 
 
 ```mermaid
 flowchart TB
-    Client[Cliente / Consumer]
+    Client[Cliente / Administrador]
 
     subgraph Identity["Identidade e acesso"]
         Keycloak[Keycloak<br/>OIDC / OAuth 2.0]
@@ -93,7 +96,7 @@ flowchart TB
 
     subgraph Services["Serviços de negócio"]
         Orders[Orders API<br/>Clean Architecture]
-        Customers[Customers API<br/>PF / PJ CRUD]
+        Customers[Customers API<br/>CRUD PF / PJ<br/>Clean Architecture]
         Inventory[Inventory Service]
         Payments[Payments Service]
         Notifications[Notifications Service]
@@ -126,11 +129,11 @@ flowchart TB
     Keycloak -->|"access token JWT"| Client
     Client -->|"Bearer JWT"| Gateway
     Gateway -->|"JWT validado"| Orders
-    Gateway -->|"admin JWT"| Customers
+    Gateway -->|"JWT admin: CRUD PF/PJ e CEP"| Customers
 
     Orders --> ODB
-    Customers --> CDB
-    Customers -->|"CEP v2"| BrasilAPI[BrasilAPI]
+    Customers -->|"PF/PJ, contatos e endereços"| CDB
+    Customers -->|"somente CEP"| BrasilAPI[BrasilAPI CEP v2]
     Orders -->|"OrderSubmitted"| Rabbit
 
     Rabbit --> Inventory
@@ -315,6 +318,25 @@ A autenticação é síncrona apenas na borda HTTP. A colaboração entre os bou
 ## Cadastro PF/PJ e endereços
 
 O microserviço **Customers** implementa o **CRUD completo de pessoas físicas (PF) e jurídicas (PJ)** como um bounded context administrativo independente de Orders. A implementação segue Clean Architecture (`Customers.Domain`, `Customers.Application`, `Customers.Infrastructure` e `Customers.Api`), usa PostgreSQL próprio e expõe a API pelo **YARP Gateway**. O diagrama de arquitetura acima inclui Customers, Keycloak, BrasilAPI, Vault e o banco exclusivo de cadastro.
+
+
+### Jornada do cadastro de pessoas
+
+```mermaid
+flowchart LR
+    Admin["Administrador"] -->|"login"| KC["Keycloak OIDC"]
+    KC -->|"access token com role admin"| Admin
+    Admin -->|"Bearer JWT"| GW["YARP Gateway"]
+    GW -->|"rotas /api/customers"| API["Customers API<br/>JWT e RBAC admin"]
+    API --> APP["Customers.Application<br/>CRUD PF e PJ"]
+    APP --> MODEL["Agregado Customer<br/>CPF ou CNPJ, contatos,<br/>1 a 10 endereços"]
+    APP -->|"repository EF Core"| DB[("Customers PostgreSQL")]
+    APP -->|"IPostalCodeLookup"| CEP["Adapter BrasilAPI v2"]
+    CEP -->|"somente CEP"| BRA["BrasilAPI CEP v2"]
+    VAULT["Vault: credenciais dinâmicas"] -.-> API
+```
+
+O cadastro é **síncrono e separado da jornada de pedidos**: a API valida CPF/CNPJ localmente, aplica as regras do agregado e persiste apenas no banco Customers. A consulta CEP retorna sugestões de endereço, mas não grava automaticamente o cadastro. A autorização `admin` é revalidada em Customers; não existe provisionamento automático de usuário no Keycloak ou associação automática com Orders. Veja o [fluxo arquitetural detalhado](docs/architecture.md#fluxo-do-cadastro-de-pessoas-pf-e-pj).
 
 ### Operações disponíveis
 
