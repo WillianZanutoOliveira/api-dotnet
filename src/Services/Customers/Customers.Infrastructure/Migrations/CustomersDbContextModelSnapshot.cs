@@ -27,6 +27,11 @@ public sealed class CustomersDbContextModelSnapshot : ModelSnapshot
             entity.HasIndex(customer => customer.Document).IsUnique();
             entity.Property(customer => customer.DisplayName).HasMaxLength(200).IsRequired();
             entity.Property(customer => customer.LegalName).HasMaxLength(200);
+            entity.Property(customer => customer.BirthDate).HasColumnType("date");
+            entity.Property(customer => customer.FoundationDate).HasColumnType("date");
+            entity.Property(customer => customer.IsActive).HasColumnType("boolean");
+            entity.Property(customer => customer.CreatedAt).HasColumnType("timestamp with time zone");
+            entity.Property(customer => customer.UpdatedAt).HasColumnType("timestamp with time zone");
             entity.Property(customer => customer.StateRegistration).HasMaxLength(30);
             entity.Property(customer => customer.MunicipalRegistration).HasMaxLength(30);
             entity.Property(customer => customer.Email).HasMaxLength(254).IsRequired();
@@ -44,6 +49,7 @@ public sealed class CustomersDbContextModelSnapshot : ModelSnapshot
             entity.ToTable("customer_addresses");
             entity.HasKey(address => address.Id);
             entity.Property(address => address.Type).HasConversion<string>().HasMaxLength(30).IsRequired();
+            entity.Property(address => address.IsPrimary).HasColumnType("boolean");
             entity.Property(address => address.PostalCode).HasMaxLength(8).IsRequired();
             entity.Property(address => address.Street).HasMaxLength(200).IsRequired();
             entity.Property(address => address.Number).HasMaxLength(30).IsRequired();
