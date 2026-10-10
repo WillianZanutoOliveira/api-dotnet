@@ -314,22 +314,108 @@ A autenticação é síncrona apenas na borda HTTP. A colaboração entre os bou
 
 ## Cadastro PF/PJ e endereços
 
-O bounded context **Customers** oferece CRUD administrativo completo sem compartilhar banco com Orders:
+O microserviço **Customers** implementa o **CRUD completo de pessoas físicas (PF) e jurídicas (PJ)** como um bounded context administrativo independente de Orders. A implementação segue Clean Architecture (`Customers.Domain`, `Customers.Application`, `Customers.Infrastructure` e `Customers.Api`), usa PostgreSQL próprio e expõe a API pelo **YARP Gateway**. O diagrama de arquitetura acima inclui Customers, Keycloak, BrasilAPI, Vault e o banco exclusivo de cadastro.
 
-| Método | Rota | Uso |
+### Operações disponíveis
+
+| Método | Rota pública (Gateway) | Resultado e finalidade |
 | --- | --- | --- |
-| `POST` | `/api/customers` | cria PF ou PJ |
-| `GET` | `/api/customers/{id}` | consulta por id |
-| `GET` | `/api/customers` | lista/pagina e filtra por texto, documento e tipo |
-| `PUT` | `/api/customers/{id}` | altera cadastro, status e endereços |
-| `DELETE` | `/api/customers/{id}` | exclui o agregado |
-| `GET` | `/api/customers/address/cep/{cep}` | consulta CEP via BrasilAPI v2 |
+| `POST` | `/api/customers` | `201 Created` — cria pessoa física ou jurídica e seus endereços |
+| `GET` | `/api/customers/{id}` | `200 OK` / `404 Not Found` — consulta cadastro por GUID |
+| `GET` | `/api/customers` | `200 OK` — pesquisa paginada e filtrada |
+| `PUT` | `/api/customers/{id}` | `200 OK` / `404 Not Found` — substitui dados e endereços; permite ativar/inativar |
+| `DELETE` | `/api/customers/{id}` | `204 No Content` / `404 Not Found` — **exclusão física** do agregado |
+| `GET` | `/api/customers/address/cep/{cep}` | `200 OK` / `404 Not Found` / `503 Service Unavailable` — consulta CEP na BrasilAPI v2 |
 
-O modelo diferencia `Individual` e `Company`, valida dígitos verificadores de CPF/CNPJ, normaliza telefone/documento e exige entre 1 e 10 endereços com exatamente um principal. Documento é único no PostgreSQL. CPF/CNPJ **não são enviados a terceiros**; somente CEP é consultado externamente.
+A listagem aceita `search` (texto), `document` (CPF/CNPJ), `personType` (`Individual` ou `Company`), `page` e `pageSize`. O padrão é página 1, 20 itens por página, com limite de 100. A resposta inclui `items`, `page`, `pageSize`, `totalCount` e `totalPages`.
 
-A BrasilAPI v2 foi encapsulada por `IPostalCodeLookup`, portanto o domínio não conhece o provedor. O cliente HTTP herda resiliência do Service Defaults; falhas do provedor retornam `503`, CEP ausente retorna `404`, e coordenadas são opcionais.
+### Dados cadastrais e validações
 
-Veja [ADR-0013](docs/adr/0013-customers-pf-pj-brasilapi-cep.md).
+| Cadastro | Campos e regras |
+| --- | --- |
+| **Pessoa física — `Individual`** | `document` (CPF válido), `displayName` (nome), `birthDate` (opcional, anterior à data atual), `email`, `phone` e `addresses`. Campos exclusivos de PJ não são aceitos. |
+| **Pessoa jurídica — `Company`** | `document` (CNPJ válido), `displayName` (nome fantasia), `legalName` (razão social obrigatória), `foundationDate` (opcional, não futura), `stateRegistration` e `municipalRegistration` (opcionais), `email`, `phone` e `addresses`. |
+| **Endereços de PF e PJ** | De **1 a 10** por cadastro, **exatamente um `isPrimary: true`**. Campos: `type` (`Primary`, `Billing`, `Shipping` ou `Other`), `postalCode`, `street`, `number`, `city` e `state`; opcionais: `complement`, `neighborhood`, `ibgeCityCode`, `latitude` e `longitude`. |
+
+CPF/CNPJ são normalizados, validados pelos dígitos verificadores e protegidos contra duplicidade por índice único no banco (`409 Conflict` em caso de documento repetido). CEP é normalizado para oito dígitos, UF para duas letras, e-mail é validado e telefone é normalizado. O tipo da pessoa **não pode mudar depois da criação**; o `PUT` recebe o cadastro completo, incluindo a coleção de endereços e `isActive`. O `DELETE` exclui o registro, enquanto `isActive: false` apenas o inativa.
+
+### Exemplos de criação pela API
+
+Os dados abaixo são **fixtures fictícias de desenvolvimento** (não utilizar para cadastros reais). O acesso exige um **JWT do Keycloak com role `admin`**, também validado dentro de Customers; um token `customer` não autoriza consultas nem gravações. Os exemplos assumem o Gateway local em `http://localhost:8080` e a variável `ADMIN_TOKEN` contendo um JWT administrativo válido.
+
+**Pessoa física:**
+
+```bash
+curl -i -X POST http://localhost:8080/api/customers \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "personType": "Individual",
+    "document": "111.444.777-35",
+    "displayName": "Pessoa Exemplo",
+    "birthDate": "1990-01-01",
+    "email": "pf@example.invalid",
+    "phone": "(44) 99999-0000",
+    "addresses": [{
+      "type": "Primary",
+      "isPrimary": true,
+      "postalCode": "87000-000",
+      "street": "Rua Exemplo",
+      "number": "100",
+      "neighborhood": "Centro",
+      "city": "Maringa",
+      "state": "PR"
+    }]
+  }'
+```
+
+**Pessoa jurídica:**
+
+```bash
+curl -i -X POST http://localhost:8080/api/customers \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "personType": "Company",
+    "document": "11.222.333/0001-81",
+    "displayName": "Empresa Exemplo",
+    "legalName": "Empresa Exemplo LTDA",
+    "foundationDate": "2020-01-01",
+    "stateRegistration": "ISENTO",
+    "email": "pj@example.invalid",
+    "phone": "44999990000",
+    "addresses": [{
+      "type": "Primary",
+      "isPrimary": true,
+      "postalCode": "87000-000",
+      "street": "Avenida Exemplo",
+      "number": "200",
+      "city": "Maringa",
+      "state": "PR"
+    }]
+  }'
+```
+
+**Consulta, filtro e CEP:**
+
+```bash
+curl -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:8080/api/customers?personType=Individual&page=1&pageSize=10"
+
+curl -H "Authorization: Bearer $ADMIN_TOKEN" \
+  "http://localhost:8080/api/customers/address/cep/01001000"
+```
+
+O `GET` por CEP consulta **BrasilAPI CEP v2** por uma porta de aplicação (`IPostalCodeLookup`) com cliente HTTP, timeout e resiliência. Ele retorna logradouro, bairro, cidade, UF, código IBGE e coordenadas **quando disponibilizados pelo provedor**; não grava automaticamente o endereço no cadastro. Somente o CEP é enviado à BrasilAPI, **nunca CPF/CNPJ**. Uma indisponibilidade do provedor retorna `503`, e CEP não encontrado retorna `404`.
+
+### Segurança, persistência e testes
+
+- **Keycloak + RBAC:** todas as rotas de Customers, inclusive a consulta de CEP, exigem role `admin`; Gateway e API validam o JWT. Ausência de autenticação retorna `401`, usuário sem permissão recebe `403`; entradas inválidas retornam respostas de validação `400`.
+- **Isolamento e credenciais:** PostgreSQL exclusivo de Customers; EF Core Migrations aplicadas com a identidade `customers_migrator` (DDL), diferente de `customers_runtime` (DML). O Vault fornece credenciais dinâmicas em execução segura.
+- **Execução local:** o serviço participa do .NET Aspire e do Docker Compose. Consulte o [guia de desenvolvimento local](docs/local-development.md) para subir Keycloak, Vault, Gateway e dependências.
+- **Validação automatizada:** com os recursos locais ativos, execute `bash scripts/customers-smoke.sh` (usa `curl` e `jq`, usuário fictício `demo-admin` da configuração local). O script cobre CRUD PF/PJ via Gateway, autorização, atualização de endereço, paginação, duplicidade e exclusão; existem também testes de domínio, infraestrutura e regressão de persistência.
+
+**Limites atuais:** o cadastro é uma **API administrativa**, não uma interface gráfica pronta; a criação de um cliente não provisiona automaticamente um usuário no Keycloak nem vincula o cadastro a um pedido em Orders. Para decisões arquiteturais e segurança, consulte [ADR-0013](docs/adr/0013-customers-pf-pj-brasilapi-cep.md), [arquitetura](docs/architecture.md) e [postura de segurança](docs/security-posture.md).
 
 ---
 
