@@ -35,7 +35,13 @@ A future evolution can replace long-lived credentials with workload identity fed
 
 CI exercises a governance change guard with isolated Git fixtures. It detects committed changes since a trusted immutable base SHA, as well as staged, unstaged and untracked changes, including protected-file renames and deletions. The guard also protects all files under `.github/workflows/`, `.ai/`, `docs/governance/`, and `tests/ai_harness/`, preventing new workflows or attempts to weaken its own governance checks. See [scripts/ai-change-guard.py](../../scripts/ai-change-guard.py) and [tests/ai_harness](../../tests/ai_harness/test_ai_change_guard.py).
 
-**This does not activate the existing AI Evolution workflow:** [issue #15](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/issues/15) requires a separately human-governed fix to the protected workflow. Any future integration must run a trusted guard copy that the agent itself cannot modify before committing.
+## Approved evolution — workflow installed (October 10, 2026)
+
+After the guard merged in [PR #17](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/pull/17), the proposal from [PR #18](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/pull/18) was applied to the protected workflow through a separate human-approved governance change in [PR #19](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/pull/19) (`d5f76b272d3b02826bd7b16eb4d032412bc5a015`). Governance integration is **complete**; the trusted guard is now part of the installed workflow.
+
+The amended decision uses three isolated runners: `engineer` and `validate` have `contents: read`; `publish` has only the write permissions needed to open a PR and dispatch checks. Independently validated patches are bound by SHA-256, with human review and no auto-merge/deploy. CI, Security, and DAST are explicitly dispatched on the generated branch.
+
+**Acceptance status:** code integration and governance-PR checks completed; the first real `workflow_dispatch` using Codex and publishing a PR has not yet been demonstrated. [Issue #15](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/issues/15) must stay open until an end-to-end smoke test succeeds. See the [operations guide](../ai-first-operations.en.md).
 
 ## Consequences
 
