@@ -27,7 +27,7 @@ Run the second command in the agent's modified worktree **before** `git add`, co
 | 1 | Protected path changed, created, removed, or renamed |
 | 2 | No eligible changes or Git failure; fail closed |
 
-The guard inspects **committed changes since the trusted base, staged, unstaged, and untracked** changes with NUL-separated filenames and `--no-renames` to ensure renaming a protected file cannot hide its deletion. The base SHA must be a complete immutable commit hash captured before the agent runs; a mutable branch like `origin/main` is not an adequate trust anchor. It protects `AGENTS.md`-listed governance files as well as its own implementation/tests and `ci.yml`. **All `.yml` and `.yaml` files under `.github/workflows/` are also protected**, including newly created workflows.
+The guard inspects **committed changes since the trusted base, staged, unstaged, and untracked** changes with NUL-separated filenames and `--no-renames` to ensure renaming a protected file cannot hide its deletion. The base SHA must be a complete immutable commit hash captured before the agent runs; a mutable branch like `origin/main` is not an adequate trust anchor. It protects `AGENTS.md`-listed governance files as well as its own implementation/tests and `ci.yml`. **The entire `.github/workflows/` directory is protected**, including newly created files of any extension, alongside `.ai/`, `docs/governance/`, and `tests/ai_harness/`. The agent cannot create a replacement policy or rewrite its own governance regression tests.
 
 ## Required trust boundary
 
