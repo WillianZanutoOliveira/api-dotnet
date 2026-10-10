@@ -69,7 +69,7 @@ Orders rejects unknown JSON properties, limits JSON depth and bounds collection,
 
 ## Authentication
 
-Gateway and Orders both validate JWTs.
+Gateway, Orders and Customers independently validate JWTs.
 
 Validation requires signed RS256 tokens, issuer, audience, lifetime and expiration. Authentication error details are disabled and tokens are not saved by middleware.
 
@@ -84,6 +84,12 @@ Production Keycloak should run in production mode with TLS and explicit hostname
 Orders creation derives customer identity from `sub`.
 
 Customer reads query PostgreSQL by both `OrderId` and `CustomerId`; admin has an explicit cross-customer path. Requests for another customer's order return 404 to avoid resource-existence disclosure.
+
+## Individual/company registry and personal data protection
+
+Customers owns a dedicated PostgreSQL database. **Every** `/api/customers` endpoint requires the `admin` role and revalidates JWTs at service level. CPF/CNPJ are normalized and validated locally; only CEP reaches BrasilAPI to enrich addresses. A unique document index rejects duplicates, input validation is explicit, and each customer must have 1–10 addresses with exactly one primary address.
+
+CEP lookup uses a fixed HTTPS upstream; callers cannot provide arbitrary remote hosts or URLs. Upstream failures are translated to service unavailability, and optional postal-code coordinates do not represent an exact residence. Registry records are not automatically provisioned as Keycloak identities. See [ADR-0013](./adr/0013-customers-pf-pj-brasilapi-cep.en.md).
 
 ## Resource consumption
 
@@ -107,9 +113,9 @@ Kubernetes examples use non-root execution, RuntimeDefault seccomp, no privilege
 
 ## Security automation
 
-Every relevant PR executes code-quality/security invariants, authentication/authorization and adversarial HTTP smoke tests, architecture/contract/chaos tests, CodeQL, Gitleaks, Trivy vulnerability/secret/misconfiguration scans and SPDX SBOM generation.
+Every relevant PR executes code-quality/security invariants, authentication/authorization, Customers PF/PJ CRUD and adversarial HTTP smoke tests, architecture/contract/chaos tests, CodeQL, Gitleaks, Trivy vulnerability/secret/misconfiguration scans and SPDX SBOM generation.
 
-`.github/workflows/dast.yml` runs an authenticated **OWASP ZAP active API scan** against a disposable Keycloak → YARP → Orders stack and stores HTML/JSON/Markdown evidence.
+`.github/workflows/dast.yml` runs authenticated **OWASP ZAP active API scans** against disposable Keycloak → YARP → Orders and Customers endpoints and stores HTML/JSON/Markdown evidence.
 
 OpenSSF Scorecard, Dependabot, k6 and OCI provenance cover recurring/supply-chain concerns.
 
