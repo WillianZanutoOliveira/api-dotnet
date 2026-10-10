@@ -36,6 +36,9 @@ jobs:
       - name: Validate static security invariants
         run: bash scripts/security-config-check.sh
 
+      - name: Validate AI governance guard (isolated Git fixtures)
+        run: python3 -m unittest discover -s tests/ai_harness -p 'test_*.py' -v
+
       - name: Validate Aspire AppHost
         run: dotnet build src/Platform/DistributedCommerce.AppHost/DistributedCommerce.AppHost.csproj --configuration Release --no-restore
 
