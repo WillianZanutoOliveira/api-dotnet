@@ -28,7 +28,7 @@ docker compose -f docker-compose.yml -f docker-compose.vault.yml up --build
 
 The `.env` file contains only **local infrastructure bootstrap values**.
 
-Orders, Inventory and Payments receive `ConnectionStrings__*-db=""`. The effective connection string is built in memory after the service obtains a temporary PostgreSQL identity from Vault.
+Customers, Orders, Inventory and Payments receive `ConnectionStrings__*-db=""`. The effective connection string is built in memory after the service obtains a temporary PostgreSQL identity from Vault.
 
 ## Flow architecture
 
@@ -59,6 +59,7 @@ Orders, Inventory and Payments receive `ConnectionStrings__*-db=""`. The effecti
 
 ### KV v2
 
+- `secret/data/platform/customers`
 - `secret/data/platform/orders`
 - `secret/data/platform/inventory`
 - `secret/data/platform/payments`
@@ -68,6 +69,7 @@ These paths currently carry RabbitMQ credentials.
 
 ### Database Secrets Engine
 
+- `database/creds/customers-app`
 - `database/creds/orders-app`
 - `database/creds/inventory-app`
 - `database/creds/payments-app`
@@ -80,6 +82,7 @@ Stable permissions live in separate runtime and migration `NOLOGIN` roles:
 
 | Service | Vault runtime | PostgreSQL runtime | Vault migration | PostgreSQL migrator |
 | --- | --- | --- | --- | --- |
+| Customers | `customers-app` | `customers_runtime` | `customers-migration` | `customers_migrator` |
 | Orders | `orders-app` | `orders_runtime` | `orders-migration` | `orders_migrator` |
 | Inventory | `inventory-app` | `inventory_runtime` | `inventory-migration` | `inventory_migrator` |
 | Payments | `payments-app` | `payments_runtime` | `payments-migration` | `payments_migrator` |
@@ -179,7 +182,7 @@ read   database/creds/orders-app
 update sys/leases/renew/database/creds/orders-app/*
 ```
 
-Inventory and Payments have equivalent boundaries. Notifications has no database role because it does not use PostgreSQL.
+Customers, Inventory and Payments have equivalent boundaries. Notifications has no database role because it does not use PostgreSQL.
 
 ### Migration identity
 
@@ -208,11 +211,11 @@ The secure pipeline verifies more than syntax:
 - build + Sonar + tests pass;
 - Testcontainers uses a real PostgreSQL instance;
 - Vault configures the Database Secrets Engine;
-- Orders starts without an effective connection string in its environment;
+- Customers and Orders start without an effective connection string in their environments;
 - PostgreSQL contains Vault-generated runtime and migration logins;
 - `__EFMigrationsHistory` confirms an EF migration was applied;
 - runtime has no DDL while the migrator owns schema CREATE;
-- the API creates/reads orders through Keycloak + YARP;
+- the Gateway handles order creation/reads and admin-only PF/PJ CRUD through Keycloak + YARP;
 - logs show runtime lease renewal;
 - CodeQL passes;
 - Trivy finds no unpatched HIGH/CRITICAL vulnerability or detectable secret;

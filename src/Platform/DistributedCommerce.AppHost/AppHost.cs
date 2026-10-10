@@ -12,10 +12,12 @@ var tokenDirectories = new Dictionary<string, string>(StringComparer.Ordinal)
     ["orders"] = Path.Combine(tokenRoot, "orders"),
     ["inventory"] = Path.Combine(tokenRoot, "inventory"),
     ["payments"] = Path.Combine(tokenRoot, "payments"),
+    ["customers"] = Path.Combine(tokenRoot, "customers"),
     ["notifications"] = Path.Combine(tokenRoot, "notifications"),
     ["orders-migrator"] = Path.Combine(tokenRoot, "orders-migrator"),
     ["inventory-migrator"] = Path.Combine(tokenRoot, "inventory-migrator"),
-    ["payments-migrator"] = Path.Combine(tokenRoot, "payments-migrator")
+    ["payments-migrator"] = Path.Combine(tokenRoot, "payments-migrator"),
+    ["customers-migrator"] = Path.Combine(tokenRoot, "customers-migrator")
 };
 
 foreach (var directory in tokenDirectories.Values)
@@ -36,6 +38,7 @@ var vaultRootToken = CreateGeneratedSecret(builder, "vault-dev-root-token");
 var ordersDbPassword = CreateGeneratedSecret(builder, "orders-db-password");
 var inventoryDbPassword = CreateGeneratedSecret(builder, "inventory-db-password");
 var paymentsDbPassword = CreateGeneratedSecret(builder, "payments-db-password");
+var customersDbPassword = CreateGeneratedSecret(builder, "customers-db-password");
 var rabbitMqPassword = CreateGeneratedSecret(builder, "rabbitmq-password");
 var keycloakAdminPassword = CreateGeneratedSecret(builder, "keycloak-admin-password");
 
@@ -62,6 +65,14 @@ var paymentsDb = AddPostgres(
     paymentsDbPassword,
     port: 5434,
     Path.Combine(repositoryRoot, "deploy", "postgres", "payments-init.sql"));
+
+var customersDb = AddPostgres(
+    builder,
+    "customers-db",
+    "customers",
+    customersDbPassword,
+    port: 5435,
+    Path.Combine(repositoryRoot, "deploy", "postgres", "customers-init.sql"));
 
 var rabbitMq = builder
     .AddContainer("rabbitmq", "rabbitmq", "4-management")
@@ -106,6 +117,8 @@ var vaultInit = builder
     .WithEnvironment("INVENTORY_POSTGRES_PASSWORD", inventoryDbPassword)
     .WithEnvironment("PAYMENTS_POSTGRES_USER", "postgres")
     .WithEnvironment("PAYMENTS_POSTGRES_PASSWORD", paymentsDbPassword)
+    .WithEnvironment("CUSTOMERS_POSTGRES_USER", "postgres")
+    .WithEnvironment("CUSTOMERS_POSTGRES_PASSWORD", customersDbPassword)
     .WithEnvironment("RABBITMQ_DEFAULT_USER", "platform")
     .WithEnvironment("RABBITMQ_DEFAULT_PASS", rabbitMqPassword)
     .WithBindMount(vaultScript, "/bootstrap/vault-init.sh", isReadOnly: true)
@@ -116,10 +129,13 @@ var vaultInit = builder
     .WithBindMount(tokenDirectories["orders-migrator"], "/tokens/orders-migrator")
     .WithBindMount(tokenDirectories["inventory-migrator"], "/tokens/inventory-migrator")
     .WithBindMount(tokenDirectories["payments-migrator"], "/tokens/payments-migrator")
+    .WithBindMount(tokenDirectories["customers"], "/tokens/customers")
+    .WithBindMount(tokenDirectories["customers-migrator"], "/tokens/customers-migrator")
     .WaitFor(vault)
     .WaitFor(ordersDb)
     .WaitFor(inventoryDb)
-    .WaitFor(paymentsDb);
+    .WaitFor(paymentsDb)
+    .WaitFor(customersDb);
 
 var databaseMigratorProject = Path.Combine(
     repositoryRoot,
@@ -170,6 +186,20 @@ var paymentsMigrator = builder
     .WithEnvironment("Vault__DatabaseRuntimeRole", "payments_migrator")
     .WaitForCompletion(vaultInit);
 
+var customersMigrator = builder
+    .AddProject("customers-migrator", databaseMigratorProject)
+    .WithEnvironment("MIGRATION_TARGET", "customers")
+    .WithEnvironment("ConnectionStrings__customers-db", "")
+    .WithEnvironment("Vault__Address", "http://localhost:8200")
+    .WithEnvironment("Vault__TokenFile", Path.Combine(tokenDirectories["customers-migrator"], "token"))
+    .WithEnvironment("Vault__DatabaseRole", "customers-migration")
+    .WithEnvironment("Vault__DatabaseConnectionStringName", "customers-db")
+    .WithEnvironment("Vault__DatabaseHost", "localhost")
+    .WithEnvironment("Vault__DatabasePort", "5435")
+    .WithEnvironment("Vault__DatabaseName", "customers")
+    .WithEnvironment("Vault__DatabaseRuntimeRole", "customers_migrator")
+    .WaitForCompletion(vaultInit);
+
 var ordersApi = builder
     .AddProject(
         "orders-api",
@@ -199,6 +229,33 @@ var ordersApi = builder
     .WaitForCompletion(vaultInit)
     .WaitForCompletion(ordersMigrator)
     .WaitFor(rabbitMq)
+    .WaitFor(keycloak);
+
+var customersApi = builder
+    .AddProject(
+        "customers-api",
+        Path.Combine(repositoryRoot, "src", "Services", "Customers", "Customers.Api", "Customers.Api.csproj"))
+    .WithHttpEndpoint(port: 8085, targetPort: 8085, name: "http", env: "ASPNETCORE_HTTP_PORTS", isProxied: false)
+    .WithHttpHealthCheck("/health")
+    .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
+    .WithEnvironment("Keycloak__Authority", "http://localhost:8180/realms/distributed-commerce")
+    .WithEnvironment("Keycloak__MetadataAddress", "http://localhost:8180/realms/distributed-commerce/.well-known/openid-configuration")
+    .WithEnvironment("Keycloak__Issuer", "http://localhost:8180/realms/distributed-commerce")
+    .WithEnvironment("Keycloak__Audience", "distributed-commerce-api")
+    .WithEnvironment("Keycloak__RequireHttpsMetadata", "false")
+    .WithEnvironment("BrasilApi__BaseUrl", "https://brasilapi.com.br/")
+    .WithEnvironment("ConnectionStrings__customers-db", "")
+    .WithEnvironment("Vault__Address", "http://localhost:8200")
+    .WithEnvironment("Vault__TokenFile", Path.Combine(tokenDirectories["customers"], "token"))
+    .WithEnvironment("Vault__DatabaseRole", "customers-app")
+    .WithEnvironment("Vault__DatabaseConnectionStringName", "customers-db")
+    .WithEnvironment("Vault__DatabaseHost", "localhost")
+    .WithEnvironment("Vault__DatabasePort", "5435")
+    .WithEnvironment("Vault__DatabaseName", "customers")
+    .WithEnvironment("Vault__DatabaseRuntimeRole", "customers_runtime")
+    .WithOtlpExporter()
+    .WaitForCompletion(vaultInit)
+    .WaitForCompletion(customersMigrator)
     .WaitFor(keycloak);
 
 builder
@@ -281,9 +338,11 @@ builder
     .WithEnvironment("Keycloak__Audience", "distributed-commerce-api")
     .WithEnvironment("Keycloak__RequireHttpsMetadata", "false")
     .WithEnvironment("ReverseProxy__Clusters__orders-cluster__Destinations__primary__Address", "http://localhost:8081/")
+    .WithEnvironment("ReverseProxy__Clusters__customers-cluster__Destinations__primary__Address", "http://localhost:8085/")
     .WithOtlpExporter()
     .WaitFor(keycloak)
-    .WaitFor(ordersApi);
+    .WaitFor(ordersApi)
+    .WaitFor(customersApi);
 
 await builder.Build().RunAsync();
 

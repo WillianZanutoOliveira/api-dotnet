@@ -1,3 +1,4 @@
+using Customers.Infrastructure;
 using DistributedCommerce.Secrets;
 using Inventory.Service;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,10 @@ static async Task MigrateAsync(
 {
     switch (target.ToLowerInvariant())
     {
+        case "customers":
+            await MigrateCustomersAsync(RequireConnectionString(configuration, "customers-db"));
+            break;
+
         case "orders":
             await MigrateOrdersAsync(RequireConnectionString(configuration, "orders-db"));
             break;
@@ -36,7 +41,7 @@ static async Task MigrateAsync(
 
         default:
             throw new InvalidOperationException(
-                $"Unsupported MIGRATION_TARGET '{target}'. Expected orders, inventory or payments.");
+                $"Unsupported MIGRATION_TARGET '{target}'. Expected customers, orders, inventory or payments.");
     }
 
     Console.WriteLine("Database migrations completed for {0}.", target);
@@ -48,6 +53,16 @@ static string RequireConnectionString(
     configuration.GetConnectionString(name)
     ?? throw new InvalidOperationException(
         $"Connection string '{name}' was not provided by the migration secret boundary.");
+
+static async Task MigrateCustomersAsync(string connectionString)
+{
+    var options = new DbContextOptionsBuilder<CustomersDbContext>()
+        .UseNpgsql(connectionString)
+        .Options;
+
+    await using var context = new CustomersDbContext(options);
+    await context.Database.MigrateAsync();
+}
 
 static async Task MigrateOrdersAsync(string connectionString)
 {

@@ -1,3 +1,6 @@
+using Customers.Application;
+using Customers.Domain;
+using Customers.Infrastructure;
 using DistributedCommerce.Contracts;
 using Inventory.Service;
 using NUnit.Framework;
@@ -33,10 +36,34 @@ public sealed class LayerDependencyTests
     }
 
     [Test]
+    public void Customers_domain_does_not_depend_on_application_infrastructure_or_frameworks()
+    {
+        AssertDoesNotReference(
+            typeof(Customer).Assembly,
+            "Customers.Application",
+            "Customers.Infrastructure",
+            "Microsoft.EntityFrameworkCore",
+            "MassTransit");
+    }
+
+    [Test]
+    public void Customers_application_does_not_depend_on_infrastructure_or_transport_frameworks()
+    {
+        AssertDoesNotReference(
+            typeof(CustomerService).Assembly,
+            "Customers.Infrastructure",
+            "Microsoft.EntityFrameworkCore",
+            "MassTransit");
+    }
+
+    [Test]
     public void Shared_contracts_do_not_depend_on_service_implementations()
     {
         AssertDoesNotReference(
             typeof(OrderSubmitted).Assembly,
+            "Customers.Domain",
+            "Customers.Application",
+            "Customers.Infrastructure",
             "Orders.Domain",
             "Orders.Application",
             "Orders.Infrastructure",
@@ -52,6 +79,7 @@ public sealed class LayerDependencyTests
     {
         var serviceAssemblies = new[]
         {
+            typeof(CustomersDbContext).Assembly,
             typeof(InventoryDbContext).Assembly,
             typeof(PaymentsDbContext).Assembly,
             typeof(Notifications.Service.Program).Assembly
@@ -59,6 +87,7 @@ public sealed class LayerDependencyTests
 
         var forbiddenServiceAssemblies = new[]
         {
+            "Customers.Infrastructure",
             "Inventory.Service",
             "Payments.Service",
             "Notifications.Service",

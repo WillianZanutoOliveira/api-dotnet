@@ -7,12 +7,12 @@
 ### .NET 10 · Aspire · Clean Architecture · YARP · RabbitMQ · Keycloak · Vault · OpenTelemetry · AI Engineering Harness
 
 [![CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ci.yml)
-![Services](https://img.shields.io/badge/Services-4-2563EB)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-3%20Databases-4169E1?logo=postgresql&logoColor=white)
+![Services](https://img.shields.io/badge/Services-5-2563EB)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4%20Databases-4169E1?logo=postgresql&logoColor=white)
 ![RabbitMQ](https://img.shields.io/badge/RabbitMQ-MassTransit-FF6600?logo=rabbitmq&logoColor=white)
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-OTLP--ready-7C3AED)
 ![Aspire](https://img.shields.io/badge/Local%20Dev-Aspire%2013.6-512BD4?logo=dotnet&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-6%20Images-2496ED?logo=docker&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-7%20Images-2496ED?logo=docker&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-Examples-326CE5?logo=kubernetes&logoColor=white)
 ![Keycloak](https://img.shields.io/badge/Identity-Keycloak-4D4D4D?logo=keycloak&logoColor=white)
 ![Vault](https://img.shields.io/badge/Secrets-Vault-FFEC6E?logo=vault&logoColor=black)
@@ -93,6 +93,7 @@ flowchart TB
 
     subgraph Services["Serviços de negócio"]
         Orders[Orders API<br/>Clean Architecture]
+        Customers[Customers API<br/>PF / PJ CRUD]
         Inventory[Inventory Service]
         Payments[Payments Service]
         Notifications[Notifications Service]
@@ -104,6 +105,7 @@ flowchart TB
 
     subgraph Data["Database per service"]
         ODB[(Orders PostgreSQL)]
+        CDB[(Customers PostgreSQL)]
         IDB[(Inventory PostgreSQL)]
         PDB[(Payments PostgreSQL)]
     end
@@ -124,8 +126,11 @@ flowchart TB
     Keycloak -->|"access token JWT"| Client
     Client -->|"Bearer JWT"| Gateway
     Gateway -->|"JWT validado"| Orders
+    Gateway -->|"admin JWT"| Customers
 
     Orders --> ODB
+    Customers --> CDB
+    Customers -->|"CEP v2"| BrasilAPI[BrasilAPI]
     Orders -->|"OrderSubmitted"| Rabbit
 
     Rabbit --> Inventory
@@ -140,17 +145,20 @@ flowchart TB
     Rabbit --> Notifications
 
     Vault -. "runtime credentials" .-> Orders
+    Vault -. "runtime credentials" .-> Customers
     Vault -. "runtime credentials" .-> Inventory
     Vault -. "runtime credentials" .-> Payments
     Vault -. "RabbitMQ secret" .-> Notifications
     Vault -. "migration credential" .-> Migrator
 
     Migrator -. "DDL / EF migrations" .-> ODB
+    Migrator -. "DDL / EF migrations" .-> CDB
     Migrator -. "DDL / EF migrations" .-> IDB
     Migrator -. "DDL / EF migrations" .-> PDB
 
     Gateway -. "OTLP" .-> OTel
     Orders -. "OTLP" .-> OTel
+    Customers -. "OTLP" .-> OTel
     Inventory -. "OTLP" .-> OTel
     Payments -. "OTLP" .-> OTel
     Notifications -. "OTLP" .-> OTel
@@ -199,6 +207,7 @@ Mais detalhes: [documentação de arquitetura](docs/architecture.md) · [walkthr
 | Keycloak | identidade, autenticação OIDC/OAuth 2.0 e realm roles | dados internos do IdP | emite JWT para clientes |
 | YARP API Gateway | entrada HTTP, validação JWT, rate limiting e proxy reverso | stateless | encaminha apenas requisições autenticadas |
 | Orders API | ciclo de vida do pedido, autorização por recurso e API voltada ao cliente | PostgreSQL | publica + consome eventos |
+| Customers API | cadastro administrativo de pessoa física/jurídica, contatos e endereços | PostgreSQL | JWT/RBAC + BrasilAPI CEP v2 |
 | Inventory Service | decisão idempotente de reserva de estoque | PostgreSQL | consome + publica eventos |
 | Payments Service | decisão de autorização de pagamento | PostgreSQL | consome + publica eventos |
 | Notifications Service | reação independente de comunicação com cliente | demo stateless | consome eventos |
@@ -211,6 +220,8 @@ Cada serviço com estado possui seu próprio banco de dados. Nenhum serviço lê
 
 
 ## Clean Architecture
+
+Os bounded contexts de **Orders** e **Customers** usam Clean Architecture com direção explícita de dependências. Em Customers, CPF/CNPJ são validados localmente e a integração externa fica atrás da porta `IPostalCodeLookup`.
 
 O bounded context de **Orders** é dividido em camadas explícitas:
 
@@ -301,6 +312,27 @@ Cliente
 
 A autenticação é síncrona apenas na borda HTTP. A colaboração entre os bounded contexts de negócio permanece assíncrona por RabbitMQ.
 
+## Cadastro PF/PJ e endereços
+
+O bounded context **Customers** oferece CRUD administrativo completo sem compartilhar banco com Orders:
+
+| Método | Rota | Uso |
+| --- | --- | --- |
+| `POST` | `/api/customers` | cria PF ou PJ |
+| `GET` | `/api/customers/{id}` | consulta por id |
+| `GET` | `/api/customers` | lista/pagina e filtra por texto, documento e tipo |
+| `PUT` | `/api/customers/{id}` | altera cadastro, status e endereços |
+| `DELETE` | `/api/customers/{id}` | exclui o agregado |
+| `GET` | `/api/customers/address/cep/{cep}` | consulta CEP via BrasilAPI v2 |
+
+O modelo diferencia `Individual` e `Company`, valida dígitos verificadores de CPF/CNPJ, normaliza telefone/documento e exige entre 1 e 10 endereços com exatamente um principal. Documento é único no PostgreSQL. CPF/CNPJ **não são enviados a terceiros**; somente CEP é consultado externamente.
+
+A BrasilAPI v2 foi encapsulada por `IPostalCodeLookup`, portanto o domínio não conhece o provedor. O cliente HTTP herda resiliência do Service Defaults; falhas do provedor retornam `503`, CEP ausente retorna `404`, e coordenadas são opcionais.
+
+Veja [ADR-0013](docs/adr/0013-customers-pf-pj-brasilapi-cep.md).
+
+---
+
 ## Executando localmente
 
 ### Caminho recomendado: .NET Aspire
@@ -316,7 +348,7 @@ Inicie toda a plataforma com um comando:
 dotnet run --project src/Platform/DistributedCommerce.AppHost
 ```
 
-O AppHost sobe PostgreSQL, RabbitMQ, Keycloak e Vault, executa o bootstrap das credenciais dinâmicas, inicia Gateway + quatro serviços como projetos locais e abre o Aspire Dashboard com logs, traces, métricas, endpoints e estado dos recursos.
+O AppHost sobe PostgreSQL, RabbitMQ, Keycloak e Vault, executa o bootstrap das credenciais dinâmicas, inicia Gateway + cinco serviços como projetos locais e abre o Aspire Dashboard com logs, traces, métricas, endpoints e estado dos recursos.
 
 As senhas administrativas locais são geradas pelo secret store do Aspire; os tokens scoped do Vault são gravados apenas em `.aspire/vault-tokens`, diretório ignorado pelo Git.
 

@@ -35,6 +35,7 @@ flowchart TB
 
     subgraph Business["Bounded contexts"]
         Orders[Orders API]
+        Customers[Customers API]
         Inventory[Inventory Service]
         Payments[Payments Service]
         Notifications[Notifications Service]
@@ -46,6 +47,7 @@ flowchart TB
 
     subgraph Persistence["Database per service"]
         OrdersDb[(Orders PostgreSQL)]
+        CustomersDb[(Customers PostgreSQL)]
         InventoryDb[(Inventory PostgreSQL)]
         PaymentsDb[(Payments PostgreSQL)]
     end
@@ -66,8 +68,11 @@ flowchart TB
     Keycloak -->|"JWT access token"| Client
     Client -->|"Bearer JWT"| Gateway
     Gateway -->|"JWT validado"| Orders
+    Gateway -->|"admin JWT"| Customers
 
     Orders --> OrdersDb
+    Customers --> CustomersDb
+    Customers -->|"CEP v2"| BrasilAPI[BrasilAPI]
     Orders -->|"OrderSubmitted"| Rabbit
     Rabbit --> Inventory
     Inventory --> InventoryDb
@@ -79,17 +84,20 @@ flowchart TB
     Rabbit --> Notifications
 
     Vault -. "runtime credentials" .-> Orders
+    Vault -. "runtime credentials" .-> Customers
     Vault -. "runtime credentials" .-> Inventory
     Vault -. "runtime credentials" .-> Payments
     Vault -. "RabbitMQ secret" .-> Notifications
     Vault -. "migration credential" .-> Migrator
 
     Migrator -. "DDL / migrations" .-> OrdersDb
+    Migrator -. "DDL / migrations" .-> CustomersDb
     Migrator -. "DDL / migrations" .-> InventoryDb
     Migrator -. "DDL / migrations" .-> PaymentsDb
 
     Gateway -. "OTLP" .-> Collector
     Orders -. "OTLP" .-> Collector
+    Customers -. "OTLP" .-> Collector
     Inventory -. "OTLP" .-> Collector
     Payments -. "OTLP" .-> Collector
     Notifications -. "OTLP" .-> Collector
@@ -100,7 +108,7 @@ flowchart TB
     Prometheus --> Grafana
 ```
 
-O caminho síncrono termina em Orders. Depois do comando HTTP autenticado, a colaboração de negócio entre bounded contexts permanece assíncrona por RabbitMQ.
+O caminho síncrono do checkout termina em Orders. O cadastro administrativo segue um caminho independente Gateway → Customers; a colaboração do checkout entre bounded contexts continua assíncrona por RabbitMQ.
 
 
 ## Limites
@@ -113,15 +121,21 @@ Keycloak é um componente de identidade da plataforma, não um bounded context d
 
 ### YARP API Gateway
 
-O Gateway é a entrada HTTP pública. Ele valida JWT na borda, aplica rate limiting por identidade e encaminha chamadas autenticadas para Orders.
+O Gateway é a entrada HTTP pública. Ele valida JWT na borda, aplica rate limiting por identidade e encaminha chamadas autenticadas para Orders ou Customers.
 
-O Gateway não é a única barreira de segurança: Orders valida o JWT novamente.
+O Gateway não é a única barreira de segurança: Orders e Customers validam o JWT novamente.
 
 ### Orders
 
 Orders é responsável pelo agregado de pedido voltado ao cliente e é o único serviço que pode alterar o estado do ciclo de vida do pedido.
 
 Ele expõe comandos/consultas HTTP síncronos, mas colabora com outros bounded contexts por meio de eventos de integração.
+
+### Customers
+
+Customers é o bounded context administrativo para cadastro de pessoas físicas e jurídicas. Ele possui PostgreSQL próprio, valida CPF/CNPJ localmente, mantém contatos e até dez endereços por pessoa, com exatamente um endereço principal.
+
+As operações de cadastro exigem role `admin`. A consulta de CEP usa BrasilAPI v2 por uma porta de aplicação (`IPostalCodeLookup`), mantendo o domínio independente do provedor. CPF/CNPJ nunca são enviados à BrasilAPI.
 
 ### Inventory
 
@@ -145,10 +159,10 @@ Isso demonstra como novas capacidades podem assinar eventos de negócio sem aume
 
 ```mermaid
 flowchart BT
-    Domain[Orders.Domain]
-    Application[Orders.Application]
-    Infrastructure[Orders.Infrastructure]
-    Api[Orders.Api]
+    Domain[Orders.Domain / Customers.Domain]
+    Application[Orders.Application / Customers.Application]
+    Infrastructure[Orders.Infrastructure / Customers.Infrastructure]
+    Api[Orders.Api / Customers.Api]
 
     Application --> Domain
     Infrastructure --> Application
@@ -157,7 +171,7 @@ flowchart BT
     Api --> Infrastructure
 ```
 
-O domínio central não referencia:
+Os domínios centrais de Orders e Customers não referenciam:
 
 - EF Core;
 - MassTransit;
@@ -274,7 +288,7 @@ Veja [ADR-0004](adr/0004-identity-keycloak.md).
 
 ## Hardening HTTP e pentest readiness
 
-A borda HTTP e Orders compartilham um baseline de segurança no `ServiceDefaults`:
+A borda HTTP, Orders e Customers compartilham um baseline de segurança no `ServiceDefaults`:
 
 - Kestrel sem header `Server`;
 - body máximo de 1 MiB;
@@ -309,13 +323,13 @@ Veja [postura de segurança](security-posture.md).
 
 ## Gestão de segredos
 
-O perfil seguro usa HashiCorp Vault com dois mecanismos. KV v2 armazena os segredos estáticos restantes do demo, enquanto o Database Secrets Engine emite credenciais PostgreSQL dinâmicas para Orders, Inventory e Payments.
+O perfil seguro usa HashiCorp Vault com dois mecanismos. KV v2 armazena os segredos estáticos restantes do demo, enquanto o Database Secrets Engine emite credenciais PostgreSQL dinâmicas para Orders, Customers, Inventory e Payments.
 
 Cada workload recebe um token independente por arquivo montado. Para banco, o token só pode ler `database/creds/<service>-app` e renovar leases sob o mesmo prefixo. A resposta do Vault fornece `username`, `password`, `lease_id`, TTL e `renewable`; o connection string é construído somente em memória.
 
 ### Roles estáveis e logins efêmeros
 
-Cada banco possui uma role `NOLOGIN` estável (`orders_runtime`, `inventory_runtime`, `payments_runtime`). O Vault cria um login efêmero e concede membership somente nessa role. A sessão PostgreSQL faz `SET ROLE` via connection options, separando a identidade temporária da autorização persistente.
+Cada banco possui uma role `NOLOGIN` estável (`orders_runtime`, `customers_runtime`, `inventory_runtime`, `payments_runtime`). O Vault cria um login efêmero e concede membership somente nessa role. A sessão PostgreSQL faz `SET ROLE` via connection options, separando a identidade temporária da autorização persistente.
 
 O lease é renovado em background. Se a renovação falhar, o host encerra o processo para que o orquestrador force uma nova autenticação e uma nova credencial.
 
@@ -335,6 +349,7 @@ Aspire AppHost
 │   ├── vault-init
 │   ├── RabbitMQ
 │   ├── Orders PostgreSQL
+│   ├── Customers PostgreSQL
 │   ├── Inventory PostgreSQL
 │   └── Payments PostgreSQL
 │
@@ -342,6 +357,7 @@ Aspire AppHost
     ├── DatabaseMigrator (one-shot)
     ├── YARP API Gateway
     ├── Orders API
+    ├── Customers API
     ├── Inventory
     ├── Payments
     └── Notifications

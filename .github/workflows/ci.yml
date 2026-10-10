@@ -74,6 +74,9 @@ jobs:
       - name: Build API Gateway image
         run: docker build -f src/Gateway/ApiGateway/Dockerfile -t distributed-commerce/gateway:ci .
 
+      - name: Build Customers image
+        run: docker build -f src/Services/Customers/Customers.Api/Dockerfile -t distributed-commerce/customers:ci .
+
       - name: Build Orders image
         run: docker build -f src/Services/Orders/Orders.Api/Dockerfile -t distributed-commerce/orders:ci .
 
@@ -99,6 +102,9 @@ jobs:
           chmod +x scripts/auth-smoke.sh
           docker compose -f docker-compose.yml -f docker-compose.vault.yml up -d --build api-gateway
           ./scripts/auth-smoke.sh
+
+      - name: Customers CRUD smoke test
+        run: bash scripts/customers-smoke.sh
 
       - name: Adversarial API security smoke test
         run: bash scripts/security-smoke.sh
@@ -191,7 +197,7 @@ jobs:
 
       - name: Smoke stack logs
         if: failure()
-        run: docker compose -f docker-compose.yml -f docker-compose.vault.yml logs --no-color vault vault-init keycloak api-gateway orders-api rabbitmq orders-db
+        run: docker compose -f docker-compose.yml -f docker-compose.vault.yml logs --no-color vault vault-init keycloak api-gateway customers-api customers-db customers-migrator orders-api rabbitmq orders-db
 
       - name: Stop smoke stack
         if: always()

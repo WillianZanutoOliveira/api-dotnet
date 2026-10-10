@@ -7,6 +7,10 @@
   <Project Path="src/Gateway/ApiGateway/ApiGateway.csproj" />
   <Project Path="src/Platform/DistributedCommerce.AppHost/DistributedCommerce.AppHost.csproj" />
   <Project Path="src/Platform/DatabaseMigrator/DatabaseMigrator.csproj" />
+  <Project Path="src/Services/Customers/Customers.Domain/Customers.Domain.csproj" />
+  <Project Path="src/Services/Customers/Customers.Application/Customers.Application.csproj" />
+  <Project Path="src/Services/Customers/Customers.Infrastructure/Customers.Infrastructure.csproj" />
+  <Project Path="src/Services/Customers/Customers.Api/Customers.Api.csproj" />
   <Project Path="src/Services/Orders/Orders.Domain/Orders.Domain.csproj" />
   <Project Path="src/Services/Orders/Orders.Application/Orders.Application.csproj" />
   <Project Path="src/Services/Orders/Orders.Infrastructure/Orders.Infrastructure.csproj" />
@@ -14,6 +18,8 @@
   <Project Path="src/Services/Inventory/Inventory.Service/Inventory.Service.csproj" />
   <Project Path="src/Services/Payments/Payments.Service/Payments.Service.csproj" />
   <Project Path="src/Services/Notifications/Notifications.Service/Notifications.Service.csproj" />
+  <Project Path="tests/Customers.Domain.Tests/Customers.Domain.Tests.csproj" />
+  <Project Path="tests/Customers.Infrastructure.Tests/Customers.Infrastructure.Tests.csproj" />
   <Project Path="tests/Orders.Domain.Tests/Orders.Domain.Tests.csproj" />
   <Project Path="tests/Orders.Persistence.IntegrationTests/Orders.Persistence.IntegrationTests.csproj" />
   <Project Path="tests/DistributedCommerce.AppHost.Tests/DistributedCommerce.AppHost.Tests.csproj" />

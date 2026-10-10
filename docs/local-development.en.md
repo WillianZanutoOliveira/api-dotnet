@@ -30,6 +30,7 @@ The Dashboard should display:
 
 ```text
 Infrastructure
+├── customers-db
 ├── orders-db
 ├── inventory-db
 ├── payments-db
@@ -39,6 +40,11 @@ Infrastructure
 └── vault-init
 
 Applications
+├── customers-migrator
+├── orders-migrator
+├── inventory-migrator
+├── payments-migrator
+├── customers-api
 ├── orders-api
 ├── inventory-service
 ├── payments-service
@@ -50,6 +56,7 @@ Applications
 
 - Gateway: `http://localhost:8080`
 - Orders: `http://localhost:8081`
+- Customers: `http://localhost:8085` (admin-only individual/company registry)
 - Inventory: `http://localhost:8082`
 - Payments: `http://localhost:8083`
 - Notifications: `http://localhost:8084`
@@ -67,7 +74,7 @@ The Dashboard is a development surface and can expose configuration, endpoints a
 
 .NET services run as projects rather than published application containers.
 
-This enables normal breakpoints in Orders, Inventory, Payments, Notifications and the API Gateway while infrastructure remains containerized.
+This enables normal breakpoints in Customers, Orders, Inventory, Payments, Notifications and the API Gateway while infrastructure remains containerized.
 
 ## Vault remains mandatory
 
@@ -155,7 +162,7 @@ All web workloads expose:
 - `/health` — readiness;
 - `/alive` — liveness.
 
-Orders also exposes in Development only:
+Orders and Customers also expose in Development only:
 
 - `/openapi/v1.json` — OpenAPI contract.
 
@@ -174,8 +181,11 @@ After the stack is running, adversarial checks can be executed with:
 
 ```bash
 bash scripts/auth-smoke.sh
+bash scripts/customers-smoke.sh
 bash scripts/security-smoke.sh
 bash scripts/security-config-check.sh
 ```
+
+The individual/company registry and CEP lookup are served through `/api/customers` and `/api/customers/address/cep/{cep}` at the Gateway. All Customers endpoints require an `admin` JWT role; CPF/CNPJ are validated locally while only postal codes reach BrasilAPI. The `customers-smoke.sh` script verifies create/search/update/delete, document uniqueness, and RBAC. See [ADR-0013](adr/0013-customers-pf-pj-brasilapi-cep.en.md).
 
 The full active scan runs through the disposable [DAST workflow](../.github/workflows/dast.yml).

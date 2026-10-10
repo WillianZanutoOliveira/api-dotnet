@@ -43,7 +43,7 @@ Depois do comando HTTP, a colaboração entre os quatro serviços de negócio pe
 
 Os serviços com estado possuem banco PostgreSQL próprio e não leem tabelas de outro bounded context.
 
-O ponto arquitetural importante é que **Keycloak e YARP fazem parte da plataforma de identidade/borda**, enquanto Orders, Inventory, Payments e Notifications são bounded contexts de negócio.
+O ponto arquitetural importante é que **Keycloak e YARP fazem parte da plataforma de identidade/borda**, enquanto Customers, Orders, Inventory, Payments e Notifications são bounded contexts de negócio. Customers oferece cadastro administrativo independente do fluxo assíncrono de checkout.
 
 
 ## 2. Clean Architecture
@@ -204,9 +204,21 @@ Um novo desenvolvedor pode subir a topologia local com:
 dotnet run --project src/Platform/DistributedCommerce.AppHost
 ```
 
-O AppHost mantém Keycloak, Vault, RabbitMQ e os três PostgreSQL em containers, enquanto Gateway e os quatro serviços .NET rodam como projetos locais. Isso preserva credenciais PostgreSQL dinâmicas e lease renewal sem sacrificar breakpoints, logs por recurso e telemetria central no Aspire Dashboard.
+O AppHost mantém Keycloak, Vault, RabbitMQ e os quatro PostgreSQL em containers, enquanto Gateway e os cinco serviços .NET rodam como projetos locais. Isso preserva credenciais PostgreSQL dinâmicas e lease renewal sem sacrificar breakpoints, logs por recurso e telemetria central no Aspire Dashboard.
 
 Docker Compose continua sendo o caminho de paridade exercitado pelo CI.
+
+### Cadastro administrativo PF/PJ (Customers)
+
+- [Endpoints do CRUD e CEP](../src/Services/Customers/Customers.Api/CustomerEndpoints.cs)
+- [Agregado Customer e invariantes de endereços](../src/Services/Customers/Customers.Domain/Customer.cs)
+- [Adapter da BrasilAPI CEP v2](../src/Services/Customers/Customers.Infrastructure/BrasilApiPostalCodeLookup.cs)
+- [Migration e snapshot EF Core](../src/Services/Customers/Customers.Infrastructure/Migrations/CustomersDbContextModelSnapshot.cs)
+- [Teste preventivo de drift das migrations](../tests/Customers.Infrastructure.Tests/CustomersMigrationModelTests.cs)
+- [Smoke autenticado PF/PJ](../scripts/customers-smoke.sh)
+- [ADR-0013 — cadastro PF/PJ e CEP](./adr/0013-customers-pf-pj-brasilapi-cep.md)
+
+A rota `/api/customers` é protegida por role `admin` no Gateway e no serviço, com PostgreSQL dedicado e credenciais dinâmicas de runtime separadas das de migration. O adapter envia **somente o CEP** à BrasilAPI; CPF/CNPJ são validados localmente. O CI exercita o CRUD e valida o snapshot das migrations, além de analisar as APIs com ZAP autenticado.
 
 ## 9. Automação de engenharia com IA
 
@@ -246,6 +258,7 @@ Os ADRs documentam trade-offs, e não apenas detalhes de implementação:
 - [ADR-0010 — Software supply chain e releases atestados](./adr/0010-software-supply-chain.md)
 - [ADR-0011 — EF Core Migrations com identidade Vault de deployment separada](./adr/0011-ef-migrations-vault-deployment-identity.md)
 - [ADR-0012 — Guardrails arquiteturais, contratos, fault injection e progressive delivery](./adr/0012-architecture-contract-chaos-gitops.md)
+- [ADR-0013 — Cadastro de clientes PF/PJ e busca CEP com BrasilAPI](./adr/0013-customers-pf-pj-brasilapi-cep.md)
 
 ## O que este repositório pretende demonstrar
 

@@ -77,7 +77,7 @@ Orders adicionalmente:
 
 ## Autenticação
 
-JWTs são validados no Gateway e novamente em Orders.
+JWTs são validados no Gateway e novamente em Orders e Customers.
 
 Validações:
 
@@ -109,6 +109,12 @@ Para leitura:
 
 Isso reduz a chance de regressão de Broken Object Level Authorization.
 
+## Cadastro PF/PJ e proteção de dados pessoais
+
+Customers possui PostgreSQL exclusivo, exige role `admin` em **todas** as rotas `/api/customers` e revalida JWT no serviço. CPF/CNPJ são normalizados e validados sem chamadas externas; apenas o CEP é enviado à BrasilAPI para completar endereço. Índice único evita duplicidade de documentos, e entradas inválidas geram respostas de validação. O domínio exige entre 1 e 10 endereços e exatamente um principal.
+
+A função de consulta de CEP usa saída HTTPS fixa para BrasilAPI e não aceita hosts ou URLs arbitrários fornecidos pelo cliente. Falhas de upstream retornam indisponibilidade ao consumidor; coordenadas geográficas, quando presentes, são estimativas por CEP, não localização exata. A API de cadastro ainda não é integrada automaticamente à identidade do Keycloak. Consulte [ADR-0013](./adr/0013-customers-pf-pj-brasilapi-cep.md).
+
 ## Rate limiting e resource consumption
 
 YARP usa token bucket particionado por `sub`.
@@ -121,7 +127,7 @@ Baseline:
 - rejeição HTTP 429;
 - `Retry-After`.
 
-O CI envia tráfego suficiente para confirmar que a proteção realmente bloqueia bursts.
+O CI envia tráfego suficiente para confirmar que a proteção realmente bloqueia bursts; também executa `scripts/customers-smoke.sh` para validar o CRUD PF/PJ e o bloqueio a usuários sem role `admin`.
 
 O DAST usa um limite elevado em uma stack descartável para não impedir o scanner de explorar a API; o teste funcional de rate limiting continua separado.
 
