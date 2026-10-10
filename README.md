@@ -540,11 +540,11 @@ Veja [ADR-0010](docs/adr/0010-software-supply-chain.md).
 
 ## AI Engineering Harness
 
-O repositório inclui o workflow [AI Evolution Harness](.github/workflows/ai-evolution.yml), projetado para executar Codex sob regras versionadas em [AGENTS.md](AGENTS.md) e [.ai/engineering-constitution.md](.ai/engineering-constitution.md). **O workflow está temporariamente indisponível**, aguardando uma correção de governança protegida na [issue #15](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/issues/15).
+O [AI Evolution Harness](.github/workflows/ai-evolution.yml) **já está instalado na `main`** desde o merge humano do [PR #19](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/pull/19) (`d5f76b272d3b02826bd7b16eb4d032412bc5a015`). As etapas são isoladas: `engineer` (Codex com token GitHub de leitura), `validate` (guard de governança em runner independente + quality gates) e `publish` (verifica SHA-256 do patch, abre somente branch/PR e solicita CI, Security e DAST). Os arquivos de governança e o próprio guard ficam protegidos de alterações pelo agente.
 
-O fluxo projetado executa restore, build, testes e validação Compose para cada tarefa pequena; somente uma branch e um PR revisável podem ser gerados, sem auto-merge. A preparação inclui um guard independente para bloquear alterações já commitadas e staged, unstaged ou untracked em arquivos de governança, com testes isolados na CI.
+**Status operacional:** a instalação e os checks de PR de governança foram confirmados, mas **a primeira execução ponta a ponta ainda não foi validada**. É preciso confirmar `OPENAI_API_KEY` como secret, permissões de Actions e executar manualmente `workflow_dispatch` na `main` com uma tarefa documental inofensiva. A [issue #15](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/issues/15) acompanha esse aceite; não há auto-merge ou deploy pelo agente.
 
-Veja [o guia AI-First](docs/ai-first-operations.md) e [ADR-0005](docs/adr/0005-ai-engineering-harness.md).
+**Evolução documentada:** [PR #17 — guard e testes](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/pull/17) · [PR #18 — proposta de governança](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/pull/18) · [PR #19 — workflow instalado](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/pull/19). Veja [operação e primeiro teste AI-First](docs/ai-first-operations.md) e [ADR-0005](docs/adr/0005-ai-engineering-harness.md).
 
 ---
 
