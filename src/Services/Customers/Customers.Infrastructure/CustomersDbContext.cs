@@ -58,6 +58,7 @@ public sealed class CustomersDbContext(DbContextOptions<CustomersDbContext> opti
         {
             entity.ToTable("customer_addresses");
             entity.HasKey(address => address.Id);
+            entity.Property(address => address.Id).ValueGeneratedNever();
             entity.Property(address => address.Type)
                 .HasConversion<string>()
                 .HasMaxLength(30)
