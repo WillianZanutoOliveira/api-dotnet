@@ -30,6 +30,7 @@ O Dashboard deve mostrar:
 
 ```text
 Infrastructure
+├── customers-db
 ├── orders-db
 ├── inventory-db
 ├── payments-db
@@ -39,6 +40,11 @@ Infrastructure
 └── vault-init
 
 Applications
+├── customers-migrator
+├── orders-migrator
+├── inventory-migrator
+├── payments-migrator
+├── customers-api
 ├── orders-api
 ├── inventory-service
 ├── payments-service
@@ -50,6 +56,7 @@ Applications
 
 - Gateway: `http://localhost:8080`
 - Orders: `http://localhost:8081`
+- Customers: `http://localhost:8085` (cadastro administrativo PF/PJ)
 - Inventory: `http://localhost:8082`
 - Payments: `http://localhost:8083`
 - Notifications: `http://localhost:8084`
@@ -70,6 +77,7 @@ Os serviços .NET rodam como projetos, não como imagens publicadas.
 Isso permite colocar breakpoint diretamente em:
 
 - Orders API;
+- Customers API;
 - Inventory;
 - Payments;
 - Notifications;
@@ -173,7 +181,7 @@ Todos os workloads web usam:
 - `/health` — readiness;
 - `/alive` — liveness.
 
-Orders também publica, somente em Development:
+Orders e Customers também publicam, somente em Development:
 
 - `/openapi/v1.json` — contrato OpenAPI.
 
@@ -192,8 +200,11 @@ Para executar os checks adversariais após subir a stack:
 
 ```bash
 bash scripts/auth-smoke.sh
+bash scripts/customers-smoke.sh
 bash scripts/security-smoke.sh
 bash scripts/security-config-check.sh
 ```
+
+O cadastro PF/PJ e a consulta de CEP estão disponíveis pelo Gateway em `/api/customers` e `/api/customers/address/cep/{cep}`. Todos os endpoints de Customers exigem JWT com role `admin`; CPF/CNPJ são validados localmente, enquanto somente o CEP é consultado externamente na BrasilAPI. O teste `customers-smoke.sh` valida criação, busca, atualização, exclusão, unicidade de documento e RBAC. Consulte [ADR-0013](adr/0013-customers-pf-pj-brasilapi-cep.md).
 
 O scan DAST completo roda pelo workflow [DAST](../.github/workflows/dast.yml), em ambiente descartável.
