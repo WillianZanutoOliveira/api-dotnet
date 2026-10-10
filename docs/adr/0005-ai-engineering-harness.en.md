@@ -33,7 +33,7 @@ A future evolution can replace long-lived credentials with workload identity fed
 
 ## Security evolution — preparatory guard
 
-CI exercises a governance change guard with isolated Git fixtures. It detects committed changes since a trusted immutable base SHA, as well as staged, unstaged and untracked changes, including protected-file renames and deletions. The guard also blocks any newly created GitHub Actions workflow (`.github/workflows/*.yml` or `.yaml`). See [scripts/ai-change-guard.py](../../scripts/ai-change-guard.py) and [tests/ai_harness](../../tests/ai_harness/test_ai_change_guard.py).
+CI exercises a governance change guard with isolated Git fixtures. It detects committed changes since a trusted immutable base SHA, as well as staged, unstaged and untracked changes, including protected-file renames and deletions. The guard also protects all files under `.github/workflows/`, `.ai/`, `docs/governance/`, and `tests/ai_harness/`, preventing new workflows or attempts to weaken its own governance checks. See [scripts/ai-change-guard.py](../../scripts/ai-change-guard.py) and [tests/ai_harness](../../tests/ai_harness/test_ai_change_guard.py).
 
 **This does not activate the existing AI Evolution workflow:** [issue #15](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/issues/15) requires a separately human-governed fix to the protected workflow. Any future integration must run a trusted guard copy that the agent itself cannot modify before committing.
 
