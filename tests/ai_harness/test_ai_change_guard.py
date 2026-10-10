@@ -133,6 +133,20 @@ class AiChangeGuardTests(unittest.TestCase):
                 self.assertIn(name, result.stderr)
                 (self.repo / name).unlink()
 
+    def test_rejects_new_policy_and_governance_test_files(self) -> None:
+        for protected_path in (
+            ".ai/prompts/another-agent.md",
+            "docs/governance/unapproved-policy.md",
+            "tests/ai_harness/test_injected_policy.py",
+            ".github/workflows/disabled-workflow.txt",
+        ):
+            with self.subTest(path=protected_path):
+                self.write(protected_path, "Unreviewed policy.\\n")
+                result = self.guard()
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(protected_path, result.stderr)
+                (self.repo / protected_path).unlink()
+
     def test_rejects_protected_changes_mixed_with_safe_ones(self) -> None:
         self.write("README.md", "Safe change.\n")
         self.write(".ai/prompts/engineer.md", "Malicious change.\n")
