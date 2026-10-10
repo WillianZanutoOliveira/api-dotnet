@@ -48,6 +48,7 @@ public sealed class CustomersDbContextModelSnapshot : ModelSnapshot
         {
             entity.ToTable("customer_addresses");
             entity.HasKey(address => address.Id);
+            entity.Property(address => address.Id).ValueGeneratedNever();
             entity.Property(address => address.Type).HasConversion<string>().HasMaxLength(30).IsRequired();
             entity.Property(address => address.IsPrimary).HasColumnType("boolean");
             entity.Property(address => address.PostalCode).HasMaxLength(8).IsRequired();
