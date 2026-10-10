@@ -91,10 +91,12 @@ public sealed class CustomerPersistenceIntegrationTests
             {
                 Assert.That(updated.DisplayName, Is.EqualTo("Updated Customer"));
                 Assert.That(updated.IsActive, Is.False);
+                Assert.That(updated.Email, Is.EqualTo("updated@example.invalid"));
                 Assert.That(updated.Addresses, Has.Count.EqualTo(1));
                 Assert.That(updated.Addresses.Single().Street, Is.EqualTo("Replacement Street"));
                 Assert.That(updated.Addresses.Single().Number, Is.EqualTo("20"));
                 Assert.That(updated.Addresses.Single().IsPrimary, Is.True);
+                Assert.That(updated.Addresses.Single().CustomerId, Is.EqualTo(customer.Id));
                 Assert.That(updated.Addresses.Single().Id, Is.Not.EqualTo(originalAddressId));
             });
         }
