@@ -14,7 +14,9 @@ Requires Python 3 and Git, with no third-party Python dependencies:
 
 ```bash
 python3 -m unittest discover -s tests/ai_harness -p 'test_*.py' -v
-python3 scripts/ai-change-guard.py --repo .
+BASE_SHA="$(git rev-parse HEAD)" # capture BEFORE starting the agent
+# After the agent runs, use a trusted copy of the guard:
+python3 /trusted/path/ai-change-guard.py --repo . --base-sha "$BASE_SHA"
 ```
 
 Run the second command in the agent's modified worktree **before** `git add`, commit, or push:
@@ -25,7 +27,7 @@ Run the second command in the agent's modified worktree **before** `git add`, co
 | 1 | Protected path changed, created, removed, or renamed |
 | 2 | No eligible changes or Git failure; fail closed |
 
-The guard inspects **staged, unstaged, and untracked** changes with NUL-separated filenames and `--no-renames` to ensure renaming a protected file cannot hide its deletion. It protects `AGENTS.md`-listed governance files as well as its own implementation/tests and `ci.yml`.
+The guard inspects **committed changes since the trusted base, staged, unstaged, and untracked** changes with NUL-separated filenames and `--no-renames` to ensure renaming a protected file cannot hide its deletion. The base SHA must be a complete immutable commit hash captured before the agent runs; a mutable branch like `origin/main` is not an adequate trust anchor. It protects `AGENTS.md`-listed governance files as well as its own implementation/tests and `ci.yml`.
 
 ## Required trust boundary
 
