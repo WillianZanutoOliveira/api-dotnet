@@ -43,7 +43,7 @@ After the HTTP command, collaboration between the four business services remains
 
 Stateful services own separate PostgreSQL databases and do not read another bounded context's tables.
 
-The important distinction is that **Keycloak and YARP are identity/edge platform components**, while Orders, Inventory, Payments and Notifications are business bounded contexts.
+The important distinction is that **Keycloak and YARP are identity/edge platform components**, while Customers, Orders, Inventory, Payments and Notifications are business bounded contexts. Customers handles administration separately from the asynchronous checkout flow.
 
 
 ## 2. Clean Architecture
@@ -204,9 +204,21 @@ A contributor can start the local topology with:
 dotnet run --project src/Platform/DistributedCommerce.AppHost
 ```
 
-The AppHost keeps Keycloak, Vault, RabbitMQ and the three PostgreSQL databases containerized while the Gateway and four .NET services run as local projects. This preserves dynamic PostgreSQL credentials and lease renewal while enabling breakpoints, per-resource logs and centralized Aspire Dashboard telemetry.
+The AppHost keeps Keycloak, Vault, RabbitMQ and four PostgreSQL databases containerized while the Gateway and five .NET services run as local projects. This preserves dynamic PostgreSQL credentials and lease renewal while enabling breakpoints, per-resource logs and centralized Aspire Dashboard telemetry.
 
 Docker Compose remains the CI-tested parity path.
+
+### Administrative individual/company registry (Customers)
+
+- [CRUD and CEP endpoints](../src/Services/Customers/Customers.Api/CustomerEndpoints.cs)
+- [Customer aggregate and address invariants](../src/Services/Customers/Customers.Domain/Customer.cs)
+- [BrasilAPI CEP v2 adapter](../src/Services/Customers/Customers.Infrastructure/BrasilApiPostalCodeLookup.cs)
+- [EF Core migration and snapshot](../src/Services/Customers/Customers.Infrastructure/Migrations/CustomersDbContextModelSnapshot.cs)
+- [Migration-drift regression test](../tests/Customers.Infrastructure.Tests/CustomersMigrationModelTests.cs)
+- [Authenticated PF/PJ smoke script](../scripts/customers-smoke.sh)
+- [ADR-0013 — PF/PJ registry and CEP](./adr/0013-customers-pf-pj-brasilapi-cep.en.md)
+
+`/api/customers` requires an `admin` role in both Gateway and service, with a dedicated PostgreSQL database and separate dynamic runtime/migration identities. The adapter sends **only the postal code** to BrasilAPI; CPF/CNPJ remain locally validated. CI exercises CRUD and migration-model consistency; authenticated ZAP scans both APIs.
 
 ## 9. AI engineering automation
 
@@ -246,6 +258,7 @@ The ADRs document trade-offs instead of only implementation details:
 - [ADR-0010 — Software supply chain and attested releases](./adr/0010-software-supply-chain.en.md)
 - [ADR-0011 — EF Core Migrations with a separate Vault deployment identity](./adr/0011-ef-migrations-vault-deployment-identity.en.md)
 - [ADR-0012 — Architecture guardrails, contracts, fault injection and progressive delivery](./adr/0012-architecture-contract-chaos-gitops.en.md)
+- [ADR-0013 — PF/PJ registry and BrasilAPI postal-code lookup](./adr/0013-customers-pf-pj-brasilapi-cep.en.md)
 
 ## What this repository is intended to demonstrate
 
