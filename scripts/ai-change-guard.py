@@ -75,6 +75,14 @@ def inspect_changes(repo: Path, base_sha: str) -> set[str]:
     return paths
 
 
+def is_protected_path(path: str) -> bool:
+    """Treat every GitHub Actions workflow as human-governed, including new ones."""
+    return path in PROTECTED_FILES or (
+        path.startswith(".github/workflows/")
+        and path.endswith((".yml", ".yaml"))
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -96,7 +104,7 @@ def main() -> int:
         print(f"AI change guard failed closed: {error}", file=sys.stderr)
         return 2
 
-    blocked = sorted(paths & PROTECTED_FILES)
+    blocked = sorted(path for path in paths if is_protected_path(path))
     if blocked:
         print("AI change guard: protected governance files were changed:", file=sys.stderr)
         for path in blocked:
