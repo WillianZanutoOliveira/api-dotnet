@@ -540,11 +540,11 @@ Veja [ADR-0010](docs/adr/0010-software-supply-chain.md).
 
 ## AI Engineering Harness
 
-O repositório também demonstra automação do ciclo de desenvolvimento. O workflow [AI Evolution Harness](.github/workflows/ai-evolution.yml) executa um agente Codex sob regras versionadas em [AGENTS.md](AGENTS.md) e [.ai/engineering-constitution.md](.ai/engineering-constitution.md).
+O repositório inclui o workflow [AI Evolution Harness](.github/workflows/ai-evolution.yml), projetado para executar Codex sob regras versionadas em [AGENTS.md](AGENTS.md) e [.ai/engineering-constitution.md](.ai/engineering-constitution.md). **O workflow está temporariamente indisponível**, aguardando uma correção de governança protegida na [issue #15](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/issues/15).
 
-O agente pode implementar uma tarefa pequena, mas só entrega depois de restore, build, testes e validação do Compose. A saída é sempre uma branch e um pull request para revisão humana; não existe auto-merge.
+O fluxo projetado executa restore, build, testes e validação Compose para cada tarefa pequena; somente uma branch e um PR revisável podem ser gerados, sem auto-merge. A preparação inclui um guard independente para bloquear alterações staged, unstaged e untracked em arquivos de governança, com testes isolados na CI.
 
-Veja [ADR-0005](docs/adr/0005-ai-engineering-harness.md).
+Veja [o guia AI-First](docs/ai-first-operations.md) e [ADR-0005](docs/adr/0005-ai-engineering-harness.md).
 
 ---
 
