@@ -22,6 +22,10 @@ class AiChangeGuardTests(unittest.TestCase):
         self.write("README.md", "Initial repository state.\n")
         self.git("add", "README.md")
         self.git("commit", "-qm", "initial")
+        self.base_sha = subprocess.check_output(
+            ("git", "-C", str(self.repo), "rev-parse", "HEAD"),
+            text=True,
+        ).strip()
 
     def git(self, *arguments: str) -> None:
         subprocess.run(
@@ -38,7 +42,7 @@ class AiChangeGuardTests(unittest.TestCase):
 
     def guard(self) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            (sys.executable, str(GUARD), "--repo", str(self.repo)),
+            (sys.executable, str(GUARD), "--repo", str(self.repo), "--base-sha", self.base_sha),
             capture_output=True,
             check=False,
             text=True,
@@ -133,9 +137,34 @@ class AiChangeGuardTests(unittest.TestCase):
         self.write("AGENTS.md\nlooks-dangerous.txt", "Not the protected file.\n")
         self.assertEqual(self.guard().returncode, 0)
 
+    def test_rejects_protected_change_already_committed_by_agent(self) -> None:
+        self.write("AGENTS.md", "Policies modified after trusted base.\n")
+        self.git("add", "AGENTS.md")
+        self.git("commit", "-qm", "agent committed forbidden governance change")
+        self.write("README.md", "A safe unstaged change cannot hide the commit.\n")
+        result = self.guard()
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("AGENTS.md", result.stderr)
+
+    def test_allows_non_governance_change_already_committed(self) -> None:
+        self.write("README.md", "Safe change already committed.\n")
+        self.git("add", "README.md")
+        self.git("commit", "-qm", "safe agent commit")
+        self.assertEqual(self.guard().returncode, 0)
+
+    def test_rejects_unknown_trusted_base(self) -> None:
+        result = subprocess.run(
+            (sys.executable, str(GUARD), "--repo", str(self.repo), "--base-sha", "0" * 40),
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("failed closed", result.stderr)
+
     def test_git_failure_is_rejected(self) -> None:
         result = subprocess.run(
-            (sys.executable, str(GUARD), "--repo", str(self.repo / "not-a-repo")),
+            (sys.executable, str(GUARD), "--repo", str(self.repo / "not-a-repo"), "--base-sha", self.base_sha),
             capture_output=True,
             check=False,
             text=True,
