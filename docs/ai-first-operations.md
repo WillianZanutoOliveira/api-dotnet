@@ -27,7 +27,7 @@ O segundo comando deve ser executado em um worktree com alterações do agente *
 | 1 | Caminho de governança protegido alterado, criado, removido ou renomeado |
 | 2 | Nenhuma mudança elegível ou erro do Git; falha fechada |
 
-O guard lê mudanças **já commitadas desde o SHA-base, staged, unstaged e untracked** usando nomes separados por NUL; usa `--no-renames` para não esconder a remoção de um arquivo protegido renomeado. O SHA-base precisa ser um hash completo e imutável, registrado pelo runner antes da execução do agente; uma branch como `origin/main` não é suficiente como referência de confiança. Ele protege os arquivos listados em `AGENTS.md`, além do próprio guard, seus testes e `ci.yml`. **Todos os arquivos `.yml` e `.yaml` em `.github/workflows/` também são protegidos**, inclusive workflows novos que o agente tente criar.
+O guard lê mudanças **já commitadas desde o SHA-base, staged, unstaged e untracked** usando nomes separados por NUL; usa `--no-renames` para não esconder a remoção de um arquivo protegido renomeado. O SHA-base precisa ser um hash completo e imutável, registrado pelo runner antes da execução do agente; uma branch como `origin/main` não é suficiente como referência de confiança. Ele protege os arquivos listados em `AGENTS.md`, além do próprio guard, seus testes e `ci.yml`. **Todo o diretório `.github/workflows/` é protegido**, inclusive novos arquivos de qualquer extensão, assim como `.ai/`, `docs/governance/` e `tests/ai_harness/`. Isso impede que o agente crie outra política ou modifique os testes que verificam sua própria governança.
 
 ## Limite de confiança obrigatório
 
