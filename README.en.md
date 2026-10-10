@@ -34,6 +34,9 @@ The system models a checkout flow split across independently deployable services
 5. **Orders** reacts asynchronously to the final business outcome.
 6. **Notifications Service** consumes payment outcomes independently.
 
+
+Alongside checkout, the platform provides an **independent administrative individual/company registry (Customers)**, including CRUD, CPF/CNPJ validation, contacts, addresses, and postal-code lookup. It shares Keycloak and the Gateway but owns its own domain and database; registration does not automatically create Keycloak identities or join the Orders messaging flow.
+
 The project intentionally focuses on the hard parts of distributed systems rather than on UI work.
 
 ---
@@ -76,39 +79,82 @@ The goal is to make advanced backend engineering visible in a public portfolio:
 ## Architecture
 
 ```mermaid
-flowchart LR
-    Client[Client] --> Keycloak[Keycloak / OIDC]
-    Keycloak --> Gateway[YARP API Gateway]
-    Gateway --> Orders[Orders API]
-    Gateway --> Customers[Customers API / PF-PJ registry]
+flowchart TB
+    Client["Client / Administrator"]
+    subgraph Identity["Identity and access"]
+        Keycloak["Keycloak<br/>OIDC / OAuth 2.0"]
+    end
+    subgraph Edge["HTTP edge"]
+        Gateway["YARP API Gateway<br/>JWT + rate limiting"]
+    end
+    subgraph Services["Business services"]
+        Orders["Orders API<br/>Clean Architecture"]
+        Customers["Customers API<br/>Full PF / PJ CRUD<br/>Clean Architecture"]
+        Inventory["Inventory Service"]
+        Payments["Payments Service"]
+        Notifications["Notifications Service"]
+    end
+    subgraph Messaging["Messaging"]
+        Rabbit[(RabbitMQ<br/>MassTransit)]
+    end
+    subgraph Persistence["Database per service"]
+        ODB[(Orders PostgreSQL)]
+        CDB[(Customers PostgreSQL)]
+        IDB[(Inventory PostgreSQL)]
+        PDB[(Payments PostgreSQL)]
+    end
+    subgraph Secrets["Secrets and schema lifecycle"]
+        Vault["HashiCorp Vault<br/>Database Secrets Engine"]
+        Migrator["DatabaseMigrator<br/>EF Core Migrations"]
+    end
+    subgraph Observability["Observability"]
+        OTel["OpenTelemetry Collector"]
+        Tempo["Tempo"]
+        Prometheus["Prometheus"]
+        Grafana["Grafana"]
+    end
 
-    Orders --> ODB[(Orders PostgreSQL)]
-    Customers --> CDB[(Customers PostgreSQL)]
-    Customers -->|CEP v2| BrasilAPI[BrasilAPI]
-    Orders -- OrderSubmitted --> Rabbit[(RabbitMQ)]
+    Client -->|"login"| Keycloak
+    Keycloak -->|"access token JWT"| Client
+    Client -->|"Bearer JWT"| Gateway
+    Gateway -->|"validated JWT"| Orders
+    Gateway -->|"admin JWT: PF/PJ CRUD and CEP"| Customers
 
-    Rabbit --> Inventory[Inventory Service]
-    Inventory --> IDB[(Inventory PostgreSQL)]
-    Inventory -- InventoryReserved / InventoryRejected --> Rabbit
-
-    Rabbit --> Payments[Payments Service]
-    Payments --> PDB[(Payments PostgreSQL)]
-    Payments -- PaymentAuthorized / PaymentFailed --> Rabbit
-
+    Orders --> ODB
+    Customers -->|"CPF/CNPJ, contacts, addresses"| CDB
+    Customers -->|"postal code only"| BrasilAPI["BrasilAPI CEP v2"]
+    Orders -->|"OrderSubmitted"| Rabbit
+    Rabbit --> Inventory
+    Inventory --> IDB
+    Inventory -->|"InventoryReserved / InventoryRejected"| Rabbit
+    Rabbit --> Payments
+    Payments --> PDB
+    Payments -->|"PaymentAuthorized / PaymentFailed"| Rabbit
     Rabbit --> Orders
-    Rabbit --> Notifications[Notifications Service]
+    Rabbit --> Notifications
 
-    Vault[HashiCorp Vault] -. secrets .-> Orders
-    Vault -. secrets .-> Inventory
-    Vault -. secrets .-> Payments
-    Vault -. secrets .-> Notifications
+    Vault -. "runtime credentials" .-> Orders
+    Vault -. "runtime credentials" .-> Customers
+    Vault -. "runtime credentials" .-> Inventory
+    Vault -. "runtime credentials" .-> Payments
+    Vault -. "RabbitMQ secret" .-> Notifications
+    Vault -. "migration credential" .-> Migrator
+    Migrator -. "EF Core migrations" .-> ODB
+    Migrator -. "EF Core migrations" .-> CDB
+    Migrator -. "EF Core migrations" .-> IDB
+    Migrator -. "EF Core migrations" .-> PDB
 
-    Orders -. traces/metrics .-> OTel[OpenTelemetry]
-    Inventory -. traces/metrics .-> OTel
-    Payments -. traces/metrics .-> OTel
-    Notifications -. traces/metrics .-> OTel
+    Gateway -. "OTLP" .-> OTel
+    Orders -. "OTLP" .-> OTel
+    Customers -. "OTLP" .-> OTel
+    Inventory -. "OTLP" .-> OTel
+    Payments -. "OTLP" .-> OTel
+    Notifications -. "OTLP" .-> OTel
+    OTel --> Tempo
+    OTel --> Prometheus
+    Tempo --> Grafana
+    Prometheus --> Grafana
 ```
-
 More detail: [Architecture documentation](docs/architecture.en.md) · [platform technical walkthrough](docs/technical-walkthrough.en.md)
 
 ---
@@ -226,6 +272,25 @@ Authentication is synchronous only at the HTTP edge. Collaboration between busin
 ## Individual/company registry and addresses
 
 The **Customers** microservice provides a **complete CRUD for individuals (PF) and companies (PJ)** as an administrative bounded context independent of Orders. It follows Clean Architecture (`Customers.Domain`, `Customers.Application`, `Customers.Infrastructure`, and `Customers.Api`), owns its PostgreSQL database, and exposes its API through the **YARP Gateway**. The architecture diagram above includes Customers, Keycloak, BrasilAPI, Vault, and its dedicated database.
+
+
+### Individual/company registration journey
+
+```mermaid
+flowchart LR
+    Admin["Administrator"] -->|"login"| KC["Keycloak OIDC"]
+    KC -->|"access token with admin role"| Admin
+    Admin -->|"Bearer JWT"| GW["YARP Gateway"]
+    GW -->|"routes /api/customers"| API["Customers API<br/>JWT and admin RBAC"]
+    API --> APP["Customers.Application<br/>PF / PJ CRUD"]
+    APP --> MODEL["Customer aggregate<br/>CPF or CNPJ, contacts,<br/>1 to 10 addresses"]
+    APP -->|"EF Core repository"| DB[("Customers PostgreSQL")]
+    APP -->|"IPostalCodeLookup"| CEP["BrasilAPI v2 adapter"]
+    CEP -->|"postal code only"| BRA["BrasilAPI CEP v2"]
+    VAULT["Vault: dynamic credentials"] -.-> API
+```
+
+Registration is **synchronous and separate from the order journey**: the API validates CPF/CNPJ locally, applies aggregate invariants, and persists exclusively in Customers' database. Postal-code lookup only returns address suggestions; it does not automatically save them. Customers validates the `admin` role again. There is no automatic Keycloak-user provisioning or Orders association. See the [detailed architecture flow](docs/architecture.en.md#individual-and-company-registration-flow).
 
 ### Available operations
 
