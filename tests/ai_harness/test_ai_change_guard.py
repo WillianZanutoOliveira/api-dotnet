@@ -134,12 +134,6 @@ class AiChangeGuardTests(unittest.TestCase):
         self.assertEqual(self.guard().returncode, 0)
 
     def test_git_failure_is_rejected(self) -> None:
-        subprocess.run(
-            (sys.executable, str(GUARD), "--repo", str(self.repo / "not-a-repo")),
-            capture_output=True,
-            check=False,
-            text=True,
-        )
         result = subprocess.run(
             (sys.executable, str(GUARD), "--repo", str(self.repo / "not-a-repo")),
             capture_output=True,
