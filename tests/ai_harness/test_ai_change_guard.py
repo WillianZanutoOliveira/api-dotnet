@@ -123,6 +123,16 @@ class AiChangeGuardTests(unittest.TestCase):
                 self.assertIn(protected_path, result.stderr)
                 (self.repo / protected_path).unlink()
 
+    def test_rejects_new_unapproved_workflow_yaml(self) -> None:
+        for extension in (".yml", ".yaml"):
+            with self.subTest(extension=extension):
+                name = f".github/workflows/unauthorized{extension}"
+                self.write(name, "name: Unapproved\\n")
+                result = self.guard()
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(name, result.stderr)
+                (self.repo / name).unlink()
+
     def test_rejects_protected_changes_mixed_with_safe_ones(self) -> None:
         self.write("README.md", "Safe change.\n")
         self.write(".ai/prompts/engineer.md", "Malicious change.\n")
