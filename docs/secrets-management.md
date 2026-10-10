@@ -28,7 +28,7 @@ docker compose -f docker-compose.yml -f docker-compose.vault.yml up --build
 
 O arquivo `.env` contém apenas valores de **bootstrap local da infraestrutura**.
 
-Os containers de Orders, Inventory e Payments recebem `ConnectionStrings__*-db=""`. O connection string efetivo é construído em memória após o serviço obter um usuário PostgreSQL temporário do Vault.
+Os containers de Customers, Orders, Inventory e Payments recebem `ConnectionStrings__*-db=""`. O connection string efetivo é construído em memória após o serviço obter um usuário PostgreSQL temporário do Vault.
 
 ## Arquitetura do fluxo
 
@@ -59,6 +59,7 @@ Os containers de Orders, Inventory e Payments recebem `ConnectionStrings__*-db="
 
 ### KV v2
 
+- `secret/data/platform/customers`
 - `secret/data/platform/orders`
 - `secret/data/platform/inventory`
 - `secret/data/platform/payments`
@@ -68,6 +69,7 @@ No perfil atual, esses paths carregam as credenciais do RabbitMQ.
 
 ### Database Secrets Engine
 
+- `database/creds/customers-app`
 - `database/creds/orders-app`
 - `database/creds/inventory-app`
 - `database/creds/payments-app`
@@ -80,6 +82,7 @@ As permissões estáveis ficam em roles `NOLOGIN` separadas para runtime e migra
 
 | Serviço | Vault runtime | PostgreSQL runtime | Vault migration | PostgreSQL migrator |
 | --- | --- | --- | --- | --- |
+| Customers | `customers-app` | `customers_runtime` | `customers-migration` | `customers_migrator` |
 | Orders | `orders-app` | `orders_runtime` | `orders-migration` | `orders_migrator` |
 | Inventory | `inventory-app` | `inventory_runtime` | `inventory-migration` | `inventory_migrator` |
 | Payments | `payments-app` | `payments_runtime` | `payments-migration` | `payments_migrator` |
@@ -179,7 +182,7 @@ read   database/creds/orders-app
 update sys/leases/renew/database/creds/orders-app/*
 ```
 
-Inventory e Payments possuem boundaries equivalentes para suas próprias roles.
+Customers, Inventory e Payments possuem boundaries equivalentes para suas próprias roles.
 
 Notifications não possui database role porque não usa PostgreSQL.
 
@@ -212,11 +215,11 @@ Ele comprova que:
 - build + Sonar + testes passam;
 - Testcontainers consegue usar PostgreSQL real;
 - Vault configura o Database Secrets Engine;
-- Orders inicia sem connection string efetivo no ambiente;
+- Customers e Orders iniciam sem connection string efetivo no ambiente;
 - o PostgreSQL contém logins dinâmicos de runtime e migration gerados pelo Vault;
 - `__EFMigrationsHistory` confirma migration EF aplicada;
 - runtime não possui DDL e migrator possui `CREATE`;
-- a API cria e consulta pedidos através de Keycloak + YARP;
+- a API cria e consulta pedidos e o CRUD PF/PJ por meio de Keycloak + YARP;
 - o log registra renovação do lease de runtime;
 - CodeQL passa;
 - Trivy não encontra vulnerabilidades HIGH/CRITICAL não corrigidas nem secrets detectáveis;
