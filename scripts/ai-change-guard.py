@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -53,11 +54,22 @@ def git(repo: Path, *arguments: str) -> bytes:
     return result.stdout
 
 
-def inspect_changes(repo: Path) -> set[str]:
-    """Include staged, unstaged and untracked paths; expose both ends of renames."""
+def inspect_changes(repo: Path, base_sha: str) -> set[str]:
+    """Include committed history, staged, unstaged, untracked, renames/deletes."""
     root = Path(os.fsdecode(git(repo, "rev-parse", "--show-toplevel").strip()))
+    if not re.fullmatch(r"[0-9a-fA-F]{40}|[0-9a-fA-F]{64}", base_sha):
+        raise RuntimeError("base SHA must be an immutable full Git commit hash")
+
+    # A trusted pre-agent base cannot be forged by editing mutable branch refs.
+    git(root, "cat-file", "-e", f"{base_sha}^{{commit}}")
+    git(root, "merge-base", "--is-ancestor", base_sha, "HEAD")
+
     paths: set[str] = set()
-    for command in CHANGE_COMMANDS:
+    commands = (
+        ("diff", "--name-only", "--no-renames", "-z", base_sha, "HEAD", "--"),
+        *CHANGE_COMMANDS,
+    )
+    for command in commands:
         output = git(root, *command)
         paths.update(os.fsdecode(path) for path in output.split(b"\0") if path)
     return paths
@@ -71,10 +83,15 @@ def main() -> int:
         default=Path.cwd(),
         help="Working tree to inspect (default: current directory)",
     )
+    parser.add_argument(
+        "--base-sha",
+        required=True,
+        help="Full, immutable Git commit SHA captured by the trusted runner before the agent runs",
+    )
     args = parser.parse_args()
 
     try:
-        paths = inspect_changes(args.repo)
+        paths = inspect_changes(args.repo, args.base_sha)
     except (OSError, RuntimeError) as error:
         print(f"AI change guard failed closed: {error}", file=sys.stderr)
         return 2
@@ -87,7 +104,7 @@ def main() -> int:
         return 1
 
     if not paths:
-        print("AI change guard: task produced no eligible Git changes.", file=sys.stderr)
+        print("AI change guard: task produced no eligible Git changes since the trusted base.", file=sys.stderr)
         return 2
 
     print(f"AI change guard: {len(paths)} changed path(s), governance intact.")
