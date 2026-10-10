@@ -227,9 +227,12 @@ Useful evidence:
 - [AGENTS.md](../AGENTS.md)
 - [Engineering constitution](../.ai/engineering-constitution.md)
 - [AI Evolution Harness workflow](../.github/workflows/ai-evolution.yml)
+- [Governance change guard](../scripts/ai-change-guard.py)
+- [Isolated Git fixture tests](../tests/ai_harness/test_ai_change_guard.py)
+- [AI-First operations guide](./ai-first-operations.en.md)
 - [Harness ADR](./adr/0005-ai-engineering-harness.en.md)
 
-The agent can implement changes in an isolated workspace, but it must pass quality gates and can only deliver through a branch + pull request. There is no auto-merge.
+The intended delivery model uses an isolated workspace, quality gates, a branch + pull request, and human review with no auto-merge. **The AI Evolution workflow is still blocked** by the defects in issue #15; the separate guard is exercised by CI and requires a later human-governed workflow integration.
 
 ## 10. Clean Code and DevSecOps
 
