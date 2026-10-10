@@ -21,8 +21,14 @@ public sealed class CustomersMigrationModelTests
         var snapshot = context.GetService<IMigrationsAssembly>().ModelSnapshot;
         Assert.That(snapshot, Is.Not.Null, "Customers migrations require a model snapshot.");
 
+        var snapshotModel = snapshot!.Model;
+        if (snapshotModel is IMutableModel mutableModel)
+            snapshotModel = mutableModel.FinalizeModel();
+
+        snapshotModel = context.GetService<IModelRuntimeInitializer>().Initialize(snapshotModel);
+
         var differences = context.GetService<IMigrationsModelDiffer>().GetDifferences(
-            snapshot!.Model.GetRelationalModel(),
+            snapshotModel.GetRelationalModel(),
             context.GetService<IDesignTimeModel>().Model.GetRelationalModel());
 
         Assert.That(
