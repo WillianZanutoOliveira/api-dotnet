@@ -76,10 +76,14 @@ def inspect_changes(repo: Path, base_sha: str) -> set[str]:
 
 
 def is_protected_path(path: str) -> bool:
-    """Treat every GitHub Actions workflow as human-governed, including new ones."""
-    return path in PROTECTED_FILES or (
-        path.startswith(".github/workflows/")
-        and path.endswith((".yml", ".yaml"))
+    """Protect agent policy, governance proposals, harness tests and workflows."""
+    return path in PROTECTED_FILES or path.startswith(
+        (
+            ".github/workflows/",
+            ".ai/",
+            "docs/governance/",
+            "tests/ai_harness/",
+        )
     )
 
 
