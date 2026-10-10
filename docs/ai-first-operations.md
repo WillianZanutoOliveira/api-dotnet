@@ -14,7 +14,9 @@ Requer Python 3 e Git, sem dependências Python adicionais:
 
 ```bash
 python3 -m unittest discover -s tests/ai_harness -p 'test_*.py' -v
-python3 scripts/ai-change-guard.py --repo .
+BASE_SHA="$(git rev-parse HEAD)" # registre ANTES de iniciar o agente
+# Após a execução do agente, use uma cópia confiável do guard:
+python3 /trusted/path/ai-change-guard.py --repo . --base-sha "$BASE_SHA"
 ```
 
 O segundo comando deve ser executado em um worktree com alterações do agente **antes** de `git add`, commit ou push:
@@ -25,7 +27,7 @@ O segundo comando deve ser executado em um worktree com alterações do agente *
 | 1 | Caminho de governança protegido alterado, criado, removido ou renomeado |
 | 2 | Nenhuma mudança elegível ou erro do Git; falha fechada |
 
-O guard lê mudanças **staged, unstaged e untracked** usando nomes separados por NUL; usa `--no-renames` para não esconder a remoção de um arquivo protegido renomeado. Ele protege os arquivos listados em `AGENTS.md`, além do próprio guard, seus testes e `ci.yml`.
+O guard lê mudanças **já commitadas desde o SHA-base, staged, unstaged e untracked** usando nomes separados por NUL; usa `--no-renames` para não esconder a remoção de um arquivo protegido renomeado. O SHA-base precisa ser um hash completo e imutável, registrado pelo runner antes da execução do agente; uma branch como `origin/main` não é suficiente como referência de confiança. Ele protege os arquivos listados em `AGENTS.md`, além do próprio guard, seus testes e `ci.yml`.
 
 ## Limite de confiança obrigatório
 
