@@ -232,7 +232,28 @@ Useful evidence:
 - [AI-First operations guide](./ai-first-operations.en.md)
 - [Harness ADR](./adr/0005-ai-engineering-harness.en.md)
 
-The intended delivery model uses an isolated workspace, quality gates, a branch + pull request, and human review with no auto-merge. **The AI Evolution workflow is still blocked** by the defects in issue #15; the separate guard is exercised by CI and requires a later human-governed workflow integration.
+**Merged implementation:** [PR #17](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/pull/17), [PR #18](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/pull/18), and [PR #19](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/pull/19) delivered a fail-closed guard, isolated Git regression tests, the reviewed proposal, and the installed workflow on `main`.
+
+```mermaid
+sequenceDiagram
+    participant H as Maintainer
+    participant E as Engineer (read-only)
+    participant V as Validate (read-only)
+    participant P as Publish (scoped write)
+    participant G as GitHub Checks
+    H->>E: workflow_dispatch on main + task
+    E->>V: binary patch artifact
+    V->>V: trusted guard + build/test/format/security/Compose
+    V->>P: validated patch SHA-256
+    P->>P: compare digest and re-run guard
+    P->>G: create branch/PR and dispatch CI, Security, DAST
+    G-->>H: validation evidence and reviewable PR
+    H->>G: human review and merge only
+```
+
+The jobs have **separate permissions**: read-only for `engineer` and `validate`; `contents: write`, `pull-requests: write`, and `actions: write` only for `publish`. The agent cannot change `.ai/`, `.github/workflows/`, `docs/governance/`, `tests/ai_harness/`, or individual policy files; the guard checks committed, staged, unstaged, and untracked changes against an immutable trusted base SHA.
+
+**Current status:** the workflow file is merged, and PR #19 CI and Security checks passed, but an end-to-end Codex run and automatically published PR have **not yet been confirmed**. [Issue #15](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/issues/15) remains open pending the controlled test in the [operations guide](ai-first-operations.en.md).
 
 ## 10. Clean Code and DevSecOps
 
