@@ -33,7 +33,7 @@ Uma evolução futura pode substituir credencial de longa duração por workload
 
 ## Evolução de segurança — preparação do guard
 
-A CI passa a exercitar um guard de mudanças de governança com fixtures Git isoladas. Ele detecta alterações staged, unstaged e untracked, renomeações e deleções de arquivos protegidos. A implementação está em [scripts/ai-change-guard.py](../../scripts/ai-change-guard.py) e os testes em [tests/ai_harness](../../tests/ai_harness/test_ai_change_guard.py).
+A CI passa a exercitar um guard de mudanças de governança com fixtures Git isoladas. Ele detecta alterações já commitadas desde um SHA-base imutável e confiável, staged, unstaged e untracked, além de renomeações e deleções de arquivos protegidos. A implementação está em [scripts/ai-change-guard.py](../../scripts/ai-change-guard.py) e os testes em [tests/ai_harness](../../tests/ai_harness/test_ai_change_guard.py).
 
 **Esta evolução não ativa o workflow AI Evolution existente:** a [issue #15](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/issues/15) exige correção humana separada do workflow protegido. Uma futura integração deve executar uma cópia confiável do guard, imune a modificações feitas pelo próprio agente, antes de commitar.
 
