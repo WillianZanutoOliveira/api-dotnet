@@ -2,45 +2,83 @@
 
 # Secure AI-First agent operations
 
-## Automation status
+## Verified status — October 10, 2026
 
-The protected `.github/workflows/ai-evolution.yml` is **awaiting a separate human-governed fix** tracked in [issue #15](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/issues/15). The current workflow has an unterminated shell quote and duplicate steps. **Do not treat autonomous agent runs as operational** until a maintainer fixes the workflow separately and verifies a controlled execution.
+**Workflow installed on `main`; end-to-end execution not yet confirmed.** The maintainer merged [PR #17](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/pull/17), [PR #18](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/pull/18), and [PR #19](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/pull/19). The active workflow is [.github/workflows/ai-evolution.yml](../.github/workflows/ai-evolution.yml), present on `main` since commit `d5f76b272d3b02826bd7b16eb4d032412bc5a015`.
 
-The change guard `scripts/ai-change-guard.py` and its regression tests are a **verified preparatory component**. CI exercises the tests, but the AI Evolution workflow does not invoke the guard yet; changing that protected workflow requires human governance review.
+PR #19 passed [CI](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/runs/38084752616) and [Security](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/runs/38084752611). This validates the governance change through PR checks; **it does not prove Codex has run, secrets are configured, or automated PR publication works**. As of the October 10, 2026 check, no successful `AI Evolution Harness` run was confirmed. [Issue #15](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/issues/15) remains open until an end-to-end smoke test succeeds.
 
-## Local verification
+## Workflow architecture
 
-Requires Python 3 and Git, with no third-party Python dependencies:
+```mermaid
+flowchart LR
+    A[workflow_dispatch on main] --> E[Engineer: Codex CLI]
+    E -->|binary patch, 10 MiB limit| V[Validate: isolated, read-only runner]
+    V -->|approved patch SHA-256| P[Publish: scoped write token]
+    P --> PR[ai/evolution-* branch and one PR]
+    PR --> CHECK[CI + Security + DAST via workflow_dispatch]
+    CHECK --> HUMAN[Human review and merge]
+```
+
+| Job | Permissions and responsibilities |
+| --- | --- |
+| `engineer` | `contents: read`, no persisted GitHub credentials; runs Codex with `OPENAI_API_KEY` and exports a patch without creating a PR |
+| `validate` | `contents: read`; imports the patch in an isolated runner, saves a trusted guard **before** patch application, runs Python fixtures, .NET restore/Release build/tests/format, static security checks and Compose validation |
+| `publish` | `contents: write`, `pull-requests: write`, `actions: write`; rechecks the same patch SHA-256 and guard, opens one branch/PR and dispatches CI/Security/DAST; **never merges** |
+
+Third-party GitHub Actions are pinned to commit SHAs. Execution is manual, serialized per repository, and limited to small tasks. The patch artifact is retained for three days; the workflow has no production deployment step.
+
+## GitHub prerequisites
+
+1. In **Settings → Secrets and variables → Actions**, confirm `OPENAI_API_KEY` exists as a **repository secret**. Never paste the key into chat, issues, files, or logs; use a dedicated API credential with suitable spending limits.
+2. In **Settings → Actions → General**, check `GITHUB_TOKEN` permissions and whether GitHub Actions is allowed to create pull requests. The `publish` job needs contents/PR write scopes and permission to dispatch workflows; avoid unnecessarily broad repository-wide privileges.
+3. Verify `main` is selected and the current revision has completed CI/Security checks. The documentation connection **cannot inspect secrets or guarantee that these permissions have been configured**.
+
+## First controlled run
+
+1. Open [Actions → AI Evolution Harness](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/actions/workflows/ai-evolution.yml), choose **Run workflow**, select `main`, and enter:
+
+   ```text
+   Create only docs/ai-first-smoke-test.md and docs/ai-first-smoke-test.en.md,
+   explaining in Portuguese and English that this is a harmless AI-First
+   workflow test. Do not modify other files, include private data, or merge.
+   ```
+
+2. Watch the `engineer`, `validate`, and `publish` jobs. Success requires a new `ai/evolution-<run>-<attempt>` branch and exactly **one reviewable pull request**, without changing `main` automatically.
+3. Check that CI, Security, and DAST were actually **completed successfully** on the created branch, including explicitly dispatched `workflow_dispatch` jobs; merely scheduling them is insufficient.
+4. Perform human diff review and ensure only the two docs were added. Do not auto-merge. Record the run and PR links in [issue #15](https://github.com/WillianZanutoOliveira/distributed-commerce-platform/issues/15).
+
+**Acceptance gate:** installing YAML is not enough. Consider the harness operational only after a successful end-to-end smoke run with a valid API credential, published PR, and independent checks.
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| `Require OpenAI API credential` fails | Missing or empty Actions secret `OPENAI_API_KEY` |
+| `engineer` fails | Codex logs and pinned CLI version (`@openai/codex@0.160.0`); do not expose the token |
+| `validate` rejects the patch | Protected paths, trusted guard, restore/build/test/format, Compose, or immutable base SHA |
+| `publish` fails | Patch SHA-256, token scopes, permission to create branch/PR and dispatch workflows |
+| PR exists but checks are missing | Check the CI/Security/DAST runs on the generated branch and any required workflow approvals |
+
+Do not bypass the guard, branch rules, or quality gates to force a green run. Any change to the protected workflow requires human governance review.
+
+## Local guard verification
+
+Requires Git and Python 3 without additional Python packages:
 
 ```bash
 python3 -m unittest discover -s tests/ai_harness -p 'test_*.py' -v
 BASE_SHA="$(git rev-parse HEAD)" # capture BEFORE starting the agent
-# After the agent runs, use a trusted copy of the guard:
+# After the run, use the trusted guard copy saved outside the writable worktree:
 python3 /trusted/path/ai-change-guard.py --repo . --base-sha "$BASE_SHA"
 ```
 
-Run the second command in the agent's modified worktree **before** `git add`, commit, or push:
-
 | Exit code | Meaning |
 | --- | --- |
-| 0 | Changes exist; no protected governance path was touched |
-| 1 | Protected path changed, created, removed, or renamed |
-| 2 | No eligible changes or Git failure; fail closed |
+| `0` | Eligible changes exist; no protected path changed |
+| `1` | Protected governance file changed, created, removed or renamed |
+| `2` | No eligible changes or Git failure; fail closed |
 
-The guard inspects **committed changes since the trusted base, staged, unstaged, and untracked** changes with NUL-separated filenames and `--no-renames` to ensure renaming a protected file cannot hide its deletion. The base SHA must be a complete immutable commit hash captured before the agent runs; a mutable branch like `origin/main` is not an adequate trust anchor. It protects `AGENTS.md`-listed governance files as well as its own implementation/tests and `ci.yml`. **The entire `.github/workflows/` directory is protected**, including newly created files of any extension, alongside `.ai/`, `docs/governance/`, and `tests/ai_harness/`. The agent cannot create a replacement policy or rewrite its own governance regression tests.
+The guard covers **committed changes since an immutable base SHA plus staged, unstaged and untracked paths**, using NUL-delimited Git names and `--no-renames` so a rename cannot hide protected deletion. The base SHA must be a full immutable commit, not `origin/main`. Besides individual files like `AGENTS.md`, the entire `.github/workflows/`, `.ai/`, `docs/governance/`, and `tests/ai_harness/` directories are protected. **Never run a guard copy that the agent might have edited.** The workflow preserves a trusted copy in a separate runner and rechecks before publishing.
 
-## Required trust boundary
-
-**Do not execute a guard copy that the agent can rewrite**. The governance workflow maintainer must execute a trusted copy taken from `main` **before** Codex runs, or from a separate trusted job. If the agent modifies `scripts/ai-change-guard.py`, that trusted copy must reject the modification. This guard and its tests do not replace independent security jobs or human review.
-
-## Pending protected-workflow fix
-
-Only a maintainer, through a separate governance PR, should:
-
-1. Fix the unterminated quote and remove duplicate Restore/Build/Test/Create PR steps.
-2. Use a trusted guard copy from before agent execution; inspect changes **before staging, committing, or pushing** and again before PR creation.
-3. Run restore, Release build, tests, `dotnet format --verify-no-changes`, `scripts/security-config-check.sh`, and Compose validation. Full smoke/security checks remain mandatory on the resulting PR.
-4. Keep immutable SHA-pinned Actions, least-privilege permissions, `OPENAI_API_KEY` isolation, and exactly one branch/PR per task.
-5. Never push to `main` or auto-merge. Test `workflow_dispatch` with a harmless documentation task and obtain human review.
-
-The target is **reviewable delivery**, not unrestricted automation. See [ADR-0005](adr/0005-ai-engineering-harness.en.md), [AGENTS.md](../AGENTS.md), and the [engineering constitution](../.ai/engineering-constitution.md).
+See [ADR-0005](adr/0005-ai-engineering-harness.en.md), [AGENTS.md](../AGENTS.md), and the [engineering constitution](../.ai/engineering-constitution.md).
